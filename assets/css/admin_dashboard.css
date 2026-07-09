@@ -1,0 +1,137 @@
+/* === ADMIN HEADER === */
+.admin-header {
+    background: linear-gradient(135deg, var(--county-green-dark) 0%, var(--county-green) 50%, var(--county-light-green) 100%);
+    color: white;
+    padding: 1.25rem 1.75rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -15%;
+    width: 180px;
+    height: 180px;
+    background: rgba(252, 209, 22, 0.08);
+    border-radius: 50%;
+}
+
+.admin-badge {
+    background: linear-gradient(135deg, var(--county-gold), var(--county-gold-dark));
+    color: var(--county-green-dark);
+    padding: 5px 16px;
+    border-radius: 20px;
+    font-weight: 800;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 8px rgba(252, 209, 22, 0.4);
+}
+
+
+
+/* === SENIOR ADMIN PANEL === */
+.senior-admin-nav {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.senior-admin-nav .nav-btn {
+    padding: 8px 20px;
+    border-radius: 25px;
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    border: 2px solid #e0e8e4;
+    background: white;
+    color: var(--text-muted);
+    transition: var(--transition);
+}
+
+.senior-admin-nav .nav-btn:hover {
+    border-color: var(--county-green);
+    color: var(--county-green);
+}
+
+.senior-admin-nav .nav-btn.active {
+    background: var(--county-green);
+    border-color: var(--county-green);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 100, 0, 0.25);
+}
+
+.admin-account-card {
+    border: 1px solid #e8efe8;
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    transition: var(--transition);
+    background: white;
+}
+
+.admin-account-card:hover {
+    box-shadow: var(--shadow-sm);
+    border-color: var(--county-green);
+}
+
+.admin-account-card .admin-info {
+    flex: 1;
+    min-width: 200px;
+}
+
+.admin-account-card .admin-info h6 {
+    margin: 0 0 2px;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.admin-account-card .admin-info small {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.admin-status-active {
+    background: var(--county-lighter-green);
+    color: #1b5e20;
+    padding: 3px 12px;
+    border-radius: 15px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.admin-status-pending {
+    background: #fff3cd;
+    color: #856404;
+    padding: 3px 12px;
+    border-radius: 15px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.admin-status-inactive {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 3px 12px;
+    border-radius: 15px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}

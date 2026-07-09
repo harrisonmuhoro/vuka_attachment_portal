@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vuka — Supervisor Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <link href="../assets/css/common.css" rel="stylesheet">
+    <link href="../assets/css/supervisor_dashboard.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <!-- Header -->
+    <header class="official-header" style="padding: 0.85rem 0;">
+    <div class="container d-flex align-items-center gap-3">
+        <svg width="120" height="38" viewBox="0 0 140 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="36" height="36" rx="9" fill="#0F7A45" x="0" y="4"/>
+            <path d="M9 14 L18 28 L27 14" stroke="#F4F7F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M13 14 L18 22 L23 14" stroke="#C5401A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <text x="46" y="29" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="24" fill="#F4F7F5" letter-spacing="-0.5">vuka</text>
+        </svg>
+        <div style="flex:1;"></div>
+        <span style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="hrNameDisplay"></span>
+        <button class="btn btn-sm" style="background: var(--c-clay); color: #fff; border: none;" id="logoutBtn">
+            <i class="fas fa-sign-out-alt me-1"></i>Logout
+        </button>
+    </div>
+</header>
+
+    <div class="container mt-4">
+        <!-- Dashboard Stats -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">My Vacancies</h5>
+                        <h2 class="display-4" id="statVacancies">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Pending Applications</h5>
+                        <h2 class="display-4" id="statPending">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Selected Candidates</h5>
+                        <h2 class="display-4" id="statSelected">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <ul class="nav nav-tabs card-header-tabs" id="supervisorTabs" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" id="vacancies-tab" data-bs-toggle="tab" data-bs-target="#vacancies-pane" type="button">
+                            <i class="fas fa-briefcase me-2"></i>My Vacancies
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="applicants-tab" data-bs-toggle="tab" data-bs-target="#applicants-pane" type="button">
+                            <i class="fas fa-users me-2"></i>Applicants
+                        </button>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <div class="tab-content">
+                    <!-- Vacancies Pane -->
+                    <div class="tab-pane fade show active" id="vacancies-pane">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h4>Department Vacancies</h4>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createVacancyModal">
+                                <i class="fas fa-plus me-2"></i>Request New Vacancy
+                            </button>
+                        </div>
+                        <div id="vacanciesList" class="table-responsive">
+                            <p class="text-center text-muted">Loading vacancies...</p>
+                        </div>
+                    </div>
+
+                    <!-- Applicants Pane -->
+                    <div class="tab-pane fade" id="applicants-pane">
+                        <div class="row mb-3 g-2">
+                            <div class="col-md-5">
+                                <h4>Applications for My Department</h4>
+                            </div>
+                            <div class="col-md-3">
+                                <select class="form-select" id="filterApplicantType">
+                                    <option value="all">All Types</option>
+                                    <option value="attachment">Attachments</option>
+                                    <option value="internship">Internships</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-select" id="filterApplicantStatus">
+                                    <option value="all">All Statuses</option>
+                                    <option value="applied">Applied</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="accepted">Accepted</option>
+                                    <option value="deployed">Deployed</option>
+                                    <option value="ongoing">Ongoing</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="applicantsList" class="table-responsive">
+                            <p class="text-center text-muted">Loading applicants...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Vacancy Modal -->
+    <div class="modal fade" id="createVacancyModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Request New Vacancy</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createVacancyForm">
+                        <div class="mb-3">
+                            <label class="form-label">Position Title</label>
+                            <input type="text" class="form-control" id="vacancyTitle" required placeholder="e.g. ICT Intern">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" id="vacancyDesc" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Skills Required</label>
+                            <input type="text" class="form-control" id="vacancySkills" placeholder="e.g. Networking, Java">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Number of Positions</label>
+                            <input type="number" class="form-control" id="vacancyCount" value="1" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" id="vacancyType" required>
+                                <option value="attachment">Attachment</option>
+                                <option value="internship">Internship</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Submit Request</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Assign Role/Station Modal -->
+    <div class="modal fade" id="assignModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Role & Station</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="assignForm">
+                        <input type="hidden" id="assignSubmissionId">
+                        <div class="alert alert-info small">
+                            Assigning: <strong id="assignApplicantName">...</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Assigned Role / Job Description</label>
+                            <input type="text" class="form-control" id="assignRole" placeholder="e.g. IT Support Assistant" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Workstation / Office</label>
+                            <input type="text" class="form-control" id="assignStation" placeholder="e.g. ICT Office, Block B" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-user-check me-2"></i>Deploy & Assign
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Applicant Detail Modal -->
+    <div class="modal fade" id="applicantDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Applicant Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="applicantDetailBody">
+                    <p class="text-center text-muted">Loading...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/supervisor_dashboard.js?v=<?php echo time(); ?>"></script>
+    <script>
+        // Init logic for Supervisor Dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+             // Check auth logic here or let app.js handle it
+             if(typeof initSupervisorDashboard === 'function') initSupervisorDashboard();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# === CREDENTIALS & CONFIG ===
+config.php
+.env
+
+# === DATABASE FILES ===
+*.sql
+database.sql
+database-migration.sql
+backup_nyeri_20260709_071418.sql
+
+# === USER UPLOADED DOCUMENTS ===
+uploads/
+
+# === LOGS ===
+debug.log
+*.log
+
+# === BACKUP FILES ===
+app_backup.js
+app_backup_2.js
+styles_backup.css
+
+# === TEST FILES ===
+test-rbac.php
+test-session.php
+
+# === CLAUDE CODE SETTINGS ===
+.claude/
+
+# === OS FILES ===
+.DS_Store
+Thumbs.db
+desktop.ini

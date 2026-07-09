@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vuka — Student Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+    <link href="../assets/css/common.css" rel="stylesheet">
+    <link href="../assets/css/student_dashboard.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <header class="official-header" style="padding: 0.85rem 0;">
+    <div class="container d-flex align-items-center gap-3">
+        <svg width="120" height="38" viewBox="0 0 140 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="36" height="36" rx="9" fill="#0F7A45" x="0" y="4"/>
+            <path d="M9 14 L18 28 L27 14" stroke="#F4F7F5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <path d="M13 14 L18 22 L23 14" stroke="#C5401A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            <text x="46" y="29" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="24" fill="#F4F7F5" letter-spacing="-0.5">vuka</text>
+        </svg>
+        <div style="flex:1;"></div>
+        <span style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="studentNameDisplay"></span>
+        <button class="btn btn-sm" style="background: var(--c-clay); color: #fff; border: none;" id="logoutBtn">
+            <i class="fas fa-sign-out-alt me-1"></i>Logout
+        </button>
+    </div>
+</header>
+
+    <div class="container mt-4">
+        <div class="row">
+            <!-- Sidebar / Profile Summary -->
+            <div class="col-md-3 mb-4">
+                <div class="card shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="avatar-circle mb-3 mx-auto text-white d-flex align-items-center justify-content-center" style="width:80px; height:80px; border-radius:50%; font-size:2rem; background:#0B1E14;">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <h5 id="profileName">Student Name</h5>
+                        <p class="text-muted small" id="profileId">ID: ...</p>
+                        <hr>
+                        <div class="text-start">
+                             <p class="mb-1"><strong>National ID:</strong> <span id="profileNationalId">—</span></p>
+                             <p class="mb-1"><strong>Institution:</strong> <span id="profileInstitution">—</span></p>
+                             <p class="mb-1"><strong>Status:</strong> <span id="overallStatus" class="badge bg-secondary">Not Applied</span></p>
+                             <p class="mb-1" id="pfNumberRow" style="display:none;"><strong>PF Number:</strong> <span id="profilePfNumber">—</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white">
+                        <ul class="nav nav-tabs card-header-tabs" id="studentTabs" role="tablist">
+                            <li class="nav-item">
+                                <button class="nav-link active" id="opps-tab" data-bs-toggle="tab" data-bs-target="#opps-pane" type="button">
+                                    <i class="fas fa-search me-2"></i>Available Opportunities
+                                </button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-pane" type="button">
+                                    <i class="fas fa-history me-2"></i>My Applications
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content">
+                            <!-- Opportunities -->
+                            <div class="tab-pane fade show active" id="opps-pane">
+                                <h4 class="mb-3">Open Vacancies</h4>
+                                <div id="vacanciesListContainer">
+                                    <p class="text-center text-muted">Loading opportunities...</p>
+                                </div>
+                            </div>
+
+                            <!-- History -->
+                            <div class="tab-pane fade" id="history-pane">
+                                <h4 class="mb-3">Application History</h4>
+                                <div id="applicationHistoryList">
+                                    <p class="text-center text-muted">No applications found.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Apply Modal -->
+    <div class="modal fade" id="applyModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Apply for <span id="applyVacancyTitle">Position</span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="applicationForm">
+                        <input type="hidden" id="vacancyId">
+                        
+                        <!-- Auto-filled info -->
+                        <div class="alert alert-info small">
+                            Applying as: <strong id="applyAsName">...</strong> (ID: <span id="applyAsId">...</span>)
+                        </div>
+
+                        <!-- Details -->
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Course Pursuing</label>
+                                <input type="text" class="form-control" id="courseName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Institution Name</label>
+                                <input type="text" class="form-control" id="institutionName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Duration (Months)</label>
+                                <input type="text" class="form-control" id="duration" placeholder="e.g. 3 Months" required>
+                            </div>
+                             <div class="col-md-6">
+                                <label class="form-label">Insurance Cover No.</label>
+                                <input type="text" class="form-control" id="insurance" required>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        <h6>Attachments</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Application Letter</label>
+                            <input type="file" class="form-control" id="fileAppLetter" accept=".pdf, .jpg, .png" required>
+                        </div>
+                         <div class="mb-3">
+                            <label class="form-label">School Intro Letter</label>
+                            <input type="file" class="form-control" id="fileSchoolLetter" accept=".pdf, .jpg, .png" required>
+                        </div>
+                         <div class="mb-3">
+                            <label class="form-label">Insurance Certificate</label>
+                            <input type="file" class="form-control" id="fileInsurance" accept=".pdf, .jpg, .png" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">National ID Copy</label>
+                            <input type="file" class="form-control" id="fileID" accept=".pdf, .jpg, .png" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 mt-3">Submit Application</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/student_dashboard.js?v=<?php echo time(); ?>"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+             if(typeof initStudentDashboard === 'function') initStudentDashboard();
+        });
+    </script>
+</body>
+</html>

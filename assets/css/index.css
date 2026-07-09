@@ -1,0 +1,14 @@
+/* === VERIFY CODE INPUT === */
+.verify-code-input {
+    font-size: 1.75rem;
+    text-align: center;
+    letter-spacing: 10px;
+    font-weight: 700;
+    padding: 0.75rem;
+    border: 2px solid var(--county-green);
+    border-radius: var(--radius-md);
+}
+
+.verify-code-input:focus {
+    box-shadow: 0 0 0 4px rgba(0, 100, 0, 0.15);
+}
