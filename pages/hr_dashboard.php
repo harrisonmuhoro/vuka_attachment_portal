@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
     <link href="../assets/css/common.css" rel="stylesheet">
     <link href="../assets/css/hr_dashboard.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-light">
     <header class="official-header" style="padding: 0.85rem 0;">
@@ -27,44 +28,57 @@
     </div>
 </header>
     <div class="container mt-4">
+        <div class="row mb-4 g-3">
+            <div class="col-md-3">
+                <div class="card stat-card warning text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Pending Vacancies</p>
+                        <h2 class="fw-bold mb-0" id="statPendingVacancies">0</h2>
+                        <small class="text-muted">Awaiting approval</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Open Positions</p>
+                        <h2 class="fw-bold mb-0" id="statOpenPositions">0</h2>
+                        <small class="text-muted">Approved vacancies</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card info text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Total Applicants</p>
+                        <h2 class="fw-bold mb-0" id="statTotalApplicants">0</h2>
+                        <small class="text-muted">All submissions</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Placed Students</p>
+                        <h2 class="fw-bold mb-0" id="statPlaced">0</h2>
+                        <small class="text-muted">Deployed & ongoing</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HR Analytics Chart -->
         <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted" style="font-size:0.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            Pending Vacancies
-                        </h5>
-                        <h2 class="display-4" id="statPendingVacancies">0</h2>
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold" style="color: var(--c-green);"><i class="fas fa-chart-bar me-2"></i>Applicants by Department</span>
+                        <button onclick="exportCSV('hrApplicantsTable', 'hr-applicants-export.csv')" class="btn btn-sm" style="background: var(--c-forest); color:#fff; border:none;">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted" style="font-size:0.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            Open Positions
-                        </h5>
-                        <h2 class="display-4" id="statOpenPositions">0</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted" style="font-size:0.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            Total Applicants
-                        </h5>
-                        <h2 class="display-4" id="statTotalApplicants">0</h2>
-                    </div>
-                </div>
-            </div>
-             <div class="col-md-3">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted" style="font-size:0.78rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                            Placed Students
-                        </h5>
-                        <h2 class="display-4" id="statPlaced">0</h2>
+                    <div class="card-body" style="height: 220px;">
+                        <canvas id="hrChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -107,7 +121,9 @@
                             <input type="text" class="form-control w-auto" id="searchApplicant" placeholder="Search...">
                         </div>
                         <div id="allApplicantsList" class="table-responsive">
-                            <p class="text-center text-muted">Loading applicants...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
 
@@ -116,7 +132,8 @@
                         <h4>Placement Management</h4>
                         <p class="text-muted">Generate offer letters for selected candidates.</p>
                         <div id="placementsList" class="table-responsive">
-                            <p class="text-center text-muted">Loading placements...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
                 </div>

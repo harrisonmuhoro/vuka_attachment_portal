@@ -45,6 +45,29 @@
                              <p class="mb-1"><strong>Status:</strong> <span id="overallStatus" class="badge bg-secondary">Not Applied</span></p>
                              <p class="mb-1" id="pfNumberRow" style="display:none;"><strong>PF Number:</strong> <span id="profilePfNumber">—</span></p>
                         </div>
+                        <hr>
+                        <!-- Application Status Timeline -->
+                        <div id="statusTimeline" style="display:none;">
+                            <p class="mb-2 fw-bold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px; color: var(--c-slate);">Application Progress</p>
+                            <div class="status-timeline">
+                                <div class="step" id="step-applied">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Applied</div>
+                                </div>
+                                <div class="step" id="step-review">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Review</div>
+                                </div>
+                                <div class="step" id="step-decision">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Decision</div>
+                                </div>
+                                <div class="step" id="step-deployed">
+                                    <div class="step-dot"></div>
+                                    <div class="step-label">Deployed</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -70,9 +93,21 @@
                         <div class="tab-content">
                             <!-- Opportunities -->
                             <div class="tab-pane fade show active" id="opps-pane">
-                                <h4 class="mb-3">Open Vacancies</h4>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h4 class="mb-0">Open Vacancies</h4>
+                                </div>
+                                <!-- Vacancy Search -->
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text" style="background: var(--c-forest); color:#fff; border:none;">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="vacancySearch"
+                                           placeholder="Search by department or title...">
+                                </div>
                                 <div id="vacanciesListContainer">
-                                    <p class="text-center text-muted">Loading opportunities...</p>
+                                    <div class="skeleton skeleton-card mb-2"></div>
+                                    <div class="skeleton skeleton-card mb-2"></div>
+                                    <div class="skeleton skeleton-card"></div>
                                 </div>
                             </div>
 
@@ -80,7 +115,11 @@
                             <div class="tab-pane fade" id="history-pane">
                                 <h4 class="mb-3">Application History</h4>
                                 <div id="applicationHistoryList">
-                                    <p class="text-center text-muted">No applications found.</p>
+                                    <div class="empty-state text-center py-5">
+                                        <i class="fas fa-clipboard-list" style="font-size:3rem; color: var(--c-border);"></i>
+                                        <h6 class="mt-3" style="color: var(--c-slate);">No applications yet</h6>
+                                        <p class="small" style="color: var(--c-slate);">Browse the vacancies tab to apply for an attachment opportunity.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

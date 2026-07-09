@@ -242,8 +242,10 @@ async function initSupervisorDashboard() {
 
     if (!token || !dept) { window.location.href = 'index.php'; return; }
 
-    document.getElementById('supervisorNameDisplay').textContent = name;
-    document.getElementById('supervisorDeptDisplay').textContent = dept;
+    const nameDisplay = document.getElementById('supervisorNameDisplay');
+    const deptDisplay = document.getElementById('supervisorDeptDisplay');
+    if (nameDisplay) nameDisplay.textContent = name;
+    if (deptDisplay) deptDisplay.textContent = dept;
 
     // Load Vacancies
     loadSupervisorVacancies(dept, token);
@@ -341,7 +343,7 @@ async function loadSupervisorApplicants(dept, token) {
             return;
         }
 
-        let html = '<table class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>Vacancy</th><th>Institution</th><th>Status</th><th>Assignment</th><th>Action</th></tr></thead><tbody>';
+        let html = '<table id="supervisorApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>Vacancy</th><th>Institution</th><th>Status</th><th>Assignment</th><th>Action</th></tr></thead><tbody>';
         submissions.forEach(s => {
             const assignInfo = s.assigned_role ? `<small>${s.assigned_role}<br>${s.assigned_station || ''}</small>` : '<small class="text-muted">—</small>';
             let actions = `<button class="btn btn-sm btn-outline-primary" onclick="viewApplicantDetails(${s.id})">View</button> `;
@@ -517,7 +519,7 @@ async function loadHrApplicants(token) {
             return;
         }
 
-        let html = '<table class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>National ID</th><th>Institution</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<table id="hrApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>National ID</th><th>Institution</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
         subs.forEach(s => {
             html += `<tr>
                 <td><strong>${s.full_name}</strong><br><small class="text-muted">${s.email}</small></td>
@@ -608,21 +610,31 @@ async function initStudentDashboard() {
         const vData = await vRes.json();
         const vList = document.getElementById('vacanciesListContainer');
 
-        let vHtml = '<div class="list-group">';
-        (vData.vacancies || []).forEach(v => {
-            const typeBadge = v.vacancy_type === 'internship' ? '<span class="badge bg-info text-dark ms-2">Internship</span>' : '<span class="badge bg-secondary ms-2">Attachment</span>';
-            vHtml += `<div class="list-group-item list-group-item-action flex-column align-items-start">
-                <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1">${v.title}${typeBadge}</h5>
-                    <small class="text-muted">${v.positions_count} Positions</small>
-                </div>
-                <p class="mb-1">${v.description}</p>
-                <small class="text-primary">${v.department_name} Dept</small>
-                <button class="btn btn-sm btn-primary float-end mt-n3" onclick="openApplyModal(${v.id}, '${v.title.replace(/'/g, "\\'")}', '${(v.department_name || '').replace(/'/g, "\\'")}', '${v.vacancy_type || 'attachment'}')">Apply Now</button>
+        if (!vData.vacancies || vData.vacancies.length === 0) {
+            vList.innerHTML = `<div class="empty-state text-center py-5">
+                <i class="fas fa-inbox" style="font-size:3rem; color: var(--c-border);"></i>
+                <h6 class="mt-3" style="color: var(--c-slate);">No vacancies yet</h6>
+                <p class="small" style="color: var(--c-slate);">Check back later or contact HR.</p>
             </div>`;
-        });
-        vHtml += '</div>';
-        vList.innerHTML = vHtml;
+        } else {
+            let vHtml = '<div class="list-group">';
+            (vData.vacancies || []).forEach(v => {
+                const typeBadge = v.vacancy_type === 'internship' ? '<span class="badge bg-info text-dark ms-2">Internship</span>' : '<span class="badge bg-secondary ms-2">Attachment</span>';
+                vHtml += `<div class="list-group-item list-group-item-action flex-column align-items-start vacancy-card">
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5 class="mb-1">${v.title}${typeBadge}</h5>
+                        <small class="text-muted">${v.positions_count} Positions</small>
+                    </div>
+                    <p class="mb-1">${v.description}</p>
+                    <small class="text-primary">${v.department_name} Dept</small>
+                    <button class="btn btn-sm btn-primary float-end mt-n3" onclick="openApplyModal(${v.id}, '${v.title.replace(/'/g, "\\'")}', '${(v.department_name || '').replace(/'/g, "\\'")}', '${v.vacancy_type || 'attachment'}')">Apply Now</button>
+                </div>`;
+            });
+            vHtml += '</div>';
+            vList.innerHTML = vHtml;
+            // Initialise search now that items are rendered
+            if (typeof initVacancySearch === 'function') initVacancySearch();
+        }
     } catch (e) {
         console.error('Error loading vacancies:', e);
     }
@@ -669,6 +681,11 @@ async function initStudentDashboard() {
     // Update sidebar status
     const statusEl = document.getElementById('overallStatus');
     if (statusEl) statusEl.outerHTML = getStatusBadge(overallStatus);
+
+    // Update visual status timeline
+    if (typeof updateStatusTimeline === 'function') {
+        updateStatusTimeline(overallStatus);
+    }
 
     const instEl = document.getElementById('profileInstitution');
     if (instEl) instEl.textContent = institution;
@@ -1194,7 +1211,8 @@ function initializeAdminIfNeeded() {
         const role = sessionStorage.getItem('adminRole') || 'department_admin';
         const isSenior = (role === 'super_admin');
 
-        document.getElementById('adminPFDisplay').textContent = pf;
+        const pfEl = document.getElementById('adminPFDisplay');
+        if (pfEl) pfEl.textContent = pf;
         const nameEl = document.getElementById('adminNameDisplay');
         const deptEl = document.getElementById('adminDeptDisplay');
         if (nameEl) nameEl.textContent = sessionStorage.getItem('adminName') || '';
@@ -1213,3 +1231,33 @@ function initializeAdminIfNeeded() {
     }
 }
 
+
+// ============ CSV EXPORT ============
+function exportCSV(tableId = null, filename = 'vuka-export.csv') {
+    let table;
+    if (tableId) {
+        table = document.getElementById(tableId);
+    }
+    if (!table) {
+        // Fallback to first table if no ID provided or found
+        table = document.querySelector('table');
+    }
+    if (!table) {
+        showToast('No data available to export.', 'warning');
+        return;
+    }
+    
+    let csv = [];
+    table.querySelectorAll('tr').forEach(row => {
+        const cols = [...row.querySelectorAll('th, td')].map(c =>
+            '"' + c.innerText.replace(/"/g, '""') + '"'
+        );
+        csv.push(cols.join(','));
+    });
+    
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+}

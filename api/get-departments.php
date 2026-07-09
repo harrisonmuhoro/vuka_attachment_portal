@@ -23,8 +23,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 try {
-    // Optional: Require admin authentication
-    // $session = requireAnyAdmin();
+    // Require admin authentication (super_admin, hr_coordinator, department_supervisor)
+    if (ob_get_length() !== false) { ob_end_clean(); }
+    $session = requireAnyAdmin();
     
     // Get all departments with admin count
     $stmt = $pdo->prepare("

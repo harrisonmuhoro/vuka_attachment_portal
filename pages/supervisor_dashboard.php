@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
     <link href="../assets/css/common.css" rel="stylesheet">
     <link href="../assets/css/supervisor_dashboard.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-light">
     <!-- Header -->
@@ -21,7 +22,10 @@
             <text x="46" y="29" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="24" fill="#F4F7F5" letter-spacing="-0.5">vuka</text>
         </svg>
         <div style="flex:1;"></div>
-        <span style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="hrNameDisplay"></span>
+        <div class="text-end me-2">
+            <div style="color:#fff; font-size:0.9rem; font-weight:600; line-height:1.1;" id="supervisorNameDisplay"></div>
+            <div style="color:rgba(255,255,255,0.7); font-size:0.75rem;" id="supervisorDeptDisplay"></div>
+        </div>
         <button class="btn btn-sm" style="background: var(--c-clay); color: #fff; border: none;" id="logoutBtn">
             <i class="fas fa-sign-out-alt me-1"></i>Logout
         </button>
@@ -30,28 +34,48 @@
 
     <div class="container mt-4">
         <!-- Dashboard Stats -->
+        <div class="row mb-4 g-3">
+            <div class="col-md-4">
+                <div class="card stat-card info text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">My Vacancies</p>
+                        <h2 class="fw-bold mb-0" id="statVacancies">0</h2>
+                        <small class="text-muted">Total posted</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card warning text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Pending Applications</p>
+                        <h2 class="fw-bold mb-0" id="statPending">0</h2>
+                        <small class="text-muted">Awaiting review</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card text-center">
+                    <div class="card-body">
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Selected Candidates</p>
+                        <h2 class="fw-bold mb-0" id="statSelected">0</h2>
+                        <small class="text-muted">Accepted & deployed</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Supervisor Analytics Chart -->
         <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">My Vacancies</h5>
-                        <h2 class="display-4" id="statVacancies">0</h2>
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold" style="color: var(--c-green);"><i class="fas fa-chart-line me-2"></i>Applications Over Time</span>
+                        <button onclick="exportCSV('supervisorApplicantsTable', 'supervisor-applicants-export.csv')" class="btn btn-sm" style="background: var(--c-forest); color:#fff; border:none;">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">Pending Applications</h5>
-                        <h2 class="display-4" id="statPending">0</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card text-center shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">Selected Candidates</h5>
-                        <h2 class="display-4" id="statSelected">0</h2>
+                    <div class="card-body" style="height: 220px;">
+                        <canvas id="supervisorChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -84,7 +108,9 @@
                             </button>
                         </div>
                         <div id="vacanciesList" class="table-responsive">
-                            <p class="text-center text-muted">Loading vacancies...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
 
@@ -114,7 +140,9 @@
                             </div>
                         </div>
                         <div id="applicantsList" class="table-responsive">
-                            <p class="text-center text-muted">Loading applicants...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
                 </div>

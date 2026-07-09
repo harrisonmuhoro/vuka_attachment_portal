@@ -12,10 +12,13 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../session-manager.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     json_response(false, null, 'Method not allowed');
 }
+
+$session = requireAnyAdmin();
 
 try {
     $documentId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -27,7 +30,7 @@ try {
     // Lookup by document ID
     if ($documentId > 0) {
         $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name
+            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name, s.department_applied
             FROM documents d
             JOIN submissions s ON d.submission_id = s.id
             WHERE d.id = ?
@@ -39,7 +42,7 @@ try {
     // Fallback: lookup by submission ID + document type
     elseif ($submissionId > 0 && !empty($documentType)) {
         $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name
+            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name, s.department_applied
             FROM documents d
             JOIN submissions s ON d.submission_id = s.id
             WHERE d.submission_id = ? AND d.document_type = ?
@@ -54,7 +57,13 @@ try {
     if (!$document) {
         json_response(false, null, 'Document not found');
     }
-    
+
+    $scopedDept = $GLOBALS['sessionManager']->getScopedDepartment($session);
+    if ($scopedDept !== null && $scopedDept !== 'ALL' && ($document['department_applied'] ?? null) !== $scopedDept) {
+        http_response_code(403);
+        json_response(false, null, 'Forbidden: document is outside your department');
+    }
+
     $filepath = UPLOAD_DIR . $document['file_path'];
     
     if (!file_exists($filepath)) {

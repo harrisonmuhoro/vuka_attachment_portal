@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
     <link href="../assets/css/common.css" rel="stylesheet">
     <link href="../assets/css/admin_dashboard.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-light">
     <header class="official-header" style="padding: 0.85rem 0;">
@@ -20,7 +21,12 @@
             <text x="46" y="29" font-family="'Plus Jakarta Sans', sans-serif" font-weight="600" font-size="24" fill="#F4F7F5" letter-spacing="-0.5">vuka</text>
         </svg>
         <div style="flex:1;"></div>
-        <span style="color:rgba(255,255,255,0.7); font-size:0.85rem;" id="hrNameDisplay"></span>
+        <div class="text-end me-2">
+            <div style="color:#fff; font-size:0.9rem; font-weight:600; line-height:1.1;" id="adminNameDisplay"></div>
+            <div style="color:rgba(255,255,255,0.7); font-size:0.75rem;">
+                <span id="adminDeptDisplay"></span> <span id="adminPFDisplay"></span>
+            </div>
+        </div>
         <button class="btn btn-sm" style="background: var(--c-clay); color: #fff; border: none;" id="logoutBtn">
             <i class="fas fa-sign-out-alt me-1"></i>Logout
         </button>
@@ -29,28 +35,48 @@
 
     <div class="container mt-4">
         <!-- Dashboard Stats -->
-        <div class="row mb-4">
+        <div class="row mb-4 g-3">
             <div class="col-md-4">
-                <div class="card text-center shadow-sm">
+                <div class="card stat-card text-center">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Users</h5>
-                        <h2 class="display-4" id="statUsers">Top</h2>
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Registered Users</p>
+                        <h2 class="fw-bold mb-0" id="statUsers">—</h2>
+                        <small class="text-muted">Student accounts</small>
                     </div>
                 </div>
             </div>
-             <div class="col-md-4">
-                <div class="card text-center shadow-sm">
+            <div class="col-md-4">
+                <div class="card stat-card info text-center">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">Admins</h5>
-                        <h2 class="display-4" id="statAdmins">Manage</h2>
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">Staff Accounts</p>
+                        <h2 class="fw-bold mb-0" id="statAdmins">—</h2>
+                        <small class="text-muted">Admins, HR & Supervisors</small>
                     </div>
                 </div>
             </div>
-             <div class="col-md-4">
-                <div class="card text-center shadow-sm">
+            <div class="col-md-4">
+                <div class="card stat-card warning text-center">
                     <div class="card-body">
-                        <h5 class="card-title text-muted">System</h5>
-                        <h2 class="display-4"><i class="fas fa-cogs"></i></h2>
+                        <p class="text-muted mb-1" style="font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">System Status</p>
+                        <h2 class="fw-bold mb-0" style="color: var(--c-green);"><i class="fas fa-check-circle"></i></h2>
+                        <small class="text-muted">All systems operational</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Chart -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-bold" style="color: var(--c-green);"><i class="fas fa-chart-pie me-2"></i>Submissions Overview</span>
+                        <button onclick="exportCSV('adminAccountsTable', 'admin-staff-export.csv')" class="btn btn-sm" style="background: var(--c-forest); color:#fff; border:none;">
+                            <i class="fas fa-download me-1"></i>Export CSV
+                        </button>
+                    </div>
+                    <div class="card-body" style="height: 220px;">
+                        <canvas id="adminChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -82,7 +108,9 @@
                     <div class="tab-pane fade show active" id="staff-pane">
                         <h4>Manage Staff Accounts</h4>
                         <div id="adminAccountsList">
-                            <p class="text-center text-muted">Loading accounts...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
 
@@ -90,7 +118,9 @@
                     <div class="tab-pane fade" id="students-pane">
                         <h4>Manage Student Accounts</h4>
                         <div id="studentAccountsList">
-                            <p class="text-center text-muted">Loading accounts...</p>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
                         </div>
                     </div>
 

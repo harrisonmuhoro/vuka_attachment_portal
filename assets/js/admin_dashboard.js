@@ -81,14 +81,9 @@ function updateStatCards(submissions) {
     animateCounter(document.getElementById('rejectedCount'), submissions.filter(s => s.status === 'rejected').length);
 }
 
-function filterByStatus(status) {
-    if (status === 'all') displaySubmissions(currentSubmissions);
-    else displaySubmissions(currentSubmissions.filter(s => s.status === status));
-    if (filterSelect) filterSelect.value = status === 'all' ? '' : status;
-}
-
 function displaySubmissions(submissions) {
     const list = document.getElementById('submissionsList');
+    if (!list) return; // Current admin layout shows submissions as a chart, not a table
     if (!submissions || submissions.length === 0) {
         list.innerHTML = '<div class="no-submissions"><i class="fas fa-inbox d-block"></i><p class="mt-2">No submissions found</p></div>';
         return;
@@ -143,7 +138,7 @@ async function loadAdminAccounts() {
                 return;
             }
 
-            let html = `<div class="table-responsive"><table class="table table-hover align-middle">
+            let html = `<div class="table-responsive"><table id="adminAccountsTable" class="table table-hover align-middle">
                 <thead class="table-light"><tr>
                     <th>Name</th><th>Role</th><th>Dept</th><th>PF Number</th><th>Email</th><th>Actions</th>
                 </tr></thead><tbody>`;
@@ -208,7 +203,7 @@ async function loadStudentAccounts() {
                 return;
             }
 
-            let html = `<div class="table-responsive"><table class="table table-hover align-middle">
+            let html = `<div class="table-responsive"><table id="studentAccountsTable" class="table table-hover align-middle">
                 <thead class="table-light"><tr>
                     <th>Name</th><th>National ID</th><th>Institution</th><th>App. Status</th><th>PF Number</th><th>Registered</th>
                 </tr></thead><tbody>`;
@@ -260,3 +255,51 @@ window.initAdminDashboard = initAdminDashboard;
 
 initializeAdminIfNeeded();
 if (!sessionStorage.getItem('adminLoggedIn')) switchView('login');
+
+// ============ ADMIN ANALYTICS ============
+async function loadAdminAnalytics() {
+    const token = sessionStorage.getItem('adminToken');
+    try {
+        const response = await fetch(`${API_BASE}/get-submissions.php`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (data.success && data.submissions) {
+            const counts = { pending: 0, approved: 0, rejected: 0 };
+            data.submissions.forEach(s => {
+                if (s.status === 'pending' || s.status === 'pending_review') counts.pending++;
+                else if (s.status === 'approved' || s.status === 'accepted' || s.status === 'deployed') counts.approved++;
+                else if (s.status === 'rejected') counts.rejected++;
+            });
+            
+            const ctx = document.getElementById('adminChart');
+            if (ctx) {
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Pending', 'Approved', 'Rejected'],
+                        datasets: [{
+                            data: [counts.pending, counts.approved, counts.rejected],
+                            backgroundColor: ['#D4960A', '#0F7A45', '#C5401A'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom' }
+                        }
+                    }
+                });
+            }
+        }
+    } catch (e) { console.error('Error loading analytics:', e); }
+}
+
+// Override initAdminDashboard to include analytics
+const oldInitAdmin = window.initAdminDashboard;
+window.initAdminDashboard = function() {
+    if(oldInitAdmin) oldInitAdmin();
+    loadAdminAnalytics();
+};
