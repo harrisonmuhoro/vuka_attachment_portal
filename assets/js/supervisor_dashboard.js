@@ -1,32 +1,25 @@
-// ============ SUPERVISOR ANALYTICS (Line Chart) ============
+// ============ SUPERVISOR ANALYTICS (Line Chart — Feature #10 server-side aggregation) ============
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Turn a 'YYYY-MM' bucket into a friendly 'Mon YYYY' label without Date parsing.
+function formatMonthLabel(ym) {
+    const parts = String(ym).split('-');
+    const monthIdx = parseInt(parts[1], 10) - 1;
+    const name = MONTH_NAMES[monthIdx] || parts[1];
+    return `${name} ${parts[0]}`;
+}
+
 async function loadSupervisorAnalytics() {
     const token = sessionStorage.getItem('adminToken');
-    const dept = sessionStorage.getItem('adminDept');
     try {
-        const res = await fetch(`${API_BASE}/get-submissions.php?department=${encodeURIComponent(dept)}`, {
+        const res = await fetch(`${API_BASE}/get-analytics.php`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        const subs = data.submissions || [];
+        const monthly = (data.success && data.data && data.data.monthly) ? data.data.monthly : [];
 
-        // Group by date (last 7 days)
-        const dateMap = {};
-        const today = new Date();
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(today.getDate() - i);
-            const key = d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
-            dateMap[key] = 0;
-        }
-
-        subs.forEach(s => {
-            const d = new Date(s.submitted_at || s.created_at);
-            const key = d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
-            if (key in dateMap) dateMap[key]++;
-        });
-
-        const labels = Object.keys(dateMap);
-        const values = Object.values(dateMap);
+        const labels = monthly.map(r => formatMonthLabel(r.month));
+        const values = monthly.map(r => Number(r.count) || 0);
 
         const ctx = document.getElementById('supervisorChart');
         if (ctx) {

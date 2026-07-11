@@ -256,43 +256,56 @@ window.initAdminDashboard = initAdminDashboard;
 initializeAdminIfNeeded();
 if (!sessionStorage.getItem('adminLoggedIn')) switchView('login');
 
-// ============ ADMIN ANALYTICS ============
+// ============ ADMIN ANALYTICS (Feature #10 — server-side aggregation) ============
+// Friendly label + colour for each real submission status.
+const STATUS_META = {
+    not_applied: { label: 'Not Applied', color: '#9CA3AF' },
+    applied:     { label: 'Applied',     color: '#D4960A' },
+    pending:     { label: 'Pending',     color: '#E0A82E' },
+    interview:   { label: 'Interview',   color: '#1E40AF' },
+    accepted:    { label: 'Accepted',    color: '#0F7A45' },
+    deployed:    { label: 'Deployed',    color: '#1A8F52' },
+    ongoing:     { label: 'Ongoing',     color: '#0EA5A0' },
+    completed:   { label: 'Completed',   color: '#065F46' },
+    rejected:    { label: 'Rejected',    color: '#C5401A' },
+    withdrawn:   { label: 'Withdrawn',   color: '#6B7280' }
+};
+
 async function loadAdminAnalytics() {
     const token = sessionStorage.getItem('adminToken');
     try {
-        const response = await fetch(`${API_BASE}/get-submissions.php`, {
+        const response = await fetch(`${API_BASE}/get-analytics.php`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await response.json();
-        if (data.success && data.submissions) {
-            const counts = { pending: 0, approved: 0, rejected: 0 };
-            data.submissions.forEach(s => {
-                if (s.status === 'pending' || s.status === 'pending_review') counts.pending++;
-                else if (s.status === 'approved' || s.status === 'accepted' || s.status === 'deployed') counts.approved++;
-                else if (s.status === 'rejected') counts.rejected++;
-            });
-            
-            const ctx = document.getElementById('adminChart');
-            if (ctx) {
-                new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Pending', 'Approved', 'Rejected'],
-                        datasets: [{
-                            data: [counts.pending, counts.approved, counts.rejected],
-                            backgroundColor: ['#D4960A', '#0F7A45', '#C5401A'],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: { position: 'bottom' }
-                        }
+        const byStatus = (data.success && data.data && data.data.by_status) ? data.data.by_status : [];
+
+        // Keep only statuses that actually have submissions.
+        const rows = byStatus.filter(r => Number(r.count) > 0);
+        const labels = rows.map(r => (STATUS_META[r.status] || {}).label || r.status);
+        const values = rows.map(r => Number(r.count));
+        const colors = rows.map(r => (STATUS_META[r.status] || {}).color || '#6B7A72');
+
+        const ctx = document.getElementById('adminChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: colors,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
                     }
-                });
-            }
+                }
+            });
         }
     } catch (e) { console.error('Error loading analytics:', e); }
 }

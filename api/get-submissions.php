@@ -132,11 +132,44 @@ try {
     }
     
     $query .= " GROUP BY s.id ORDER BY s.submitted_at DESC";
-    
+
+    // ---- Optional server-side pagination (Feature #11) ----
+    // Backward compatible: only paginates when a `page` param is present.
+    // The WHERE clause (in $query) and $params are reused for the COUNT.
+    $paginate = isset($_GET['page']);
+    $pagination = null;
+
+    if ($paginate) {
+        $page    = max(1, (int)$_GET['page']);
+        $perPage = min(50, max(5, (int)($_GET['per_page'] ?? 20)));
+        $offset  = ($page - 1) * $perPage;
+
+        // Count distinct submissions matching the same WHERE (strip GROUP BY / ORDER BY).
+        // Rebuild a lean count query from the same conditions.
+        $countQuery = "SELECT COUNT(DISTINCT s.id) FROM submissions s";
+        if (!empty($department) && $department !== 'ALL') {
+            $countQuery .= " WHERE s.department_applied = ?";
+        } elseif (isset($userId) && $userId > 0) {
+            $countQuery .= " WHERE s.user_id = ?";
+        }
+        $countStmt = $pdo->prepare($countQuery);
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $query .= " LIMIT " . (int)$perPage . " OFFSET " . (int)$offset;
+
+        $pagination = [
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'total'       => $total,
+            'total_pages' => (int)ceil($total / $perPage),
+        ];
+    }
+
     $stmt = $pdo->prepare($query);
     $stmt->execute($params);
     $submissions = $stmt->fetchAll();
-    
+
     // For each submission, get its documents
     foreach ($submissions as &$sub) {
         $docStmt = $pdo->prepare("SELECT id, document_type, original_filename, mime_type FROM documents WHERE submission_id = ?");
@@ -144,12 +177,17 @@ try {
         $sub['documents'] = $docStmt->fetchAll();
     }
     unset($sub);
-    
-    ob_end_clean();
-    json_response(true, [
+
+    $responsePayload = [
         'submissions' => $submissions,
         'count' => count($submissions)
-    ]);
+    ];
+    if ($pagination !== null) {
+        $responsePayload['pagination'] = $pagination;
+    }
+
+    ob_end_clean();
+    json_response(true, $responsePayload);
     
 } catch (Exception $e) {
     error_log("Get submissions error: " . $e->getMessage());

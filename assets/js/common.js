@@ -9,6 +9,35 @@
 const API_BASE = (window.location.pathname.includes('/pages/') || window.location.pathname.includes('\\pages\\')) ? '../api' : 'api';
 
 
+// ============ DARK MODE (Feature #8) ============
+// Apply saved theme ASAP. (A pre-paint inline script in each page <head> avoids
+// the flash; this is the fallback + the source of the toggle function.)
+(function applySavedTheme() {
+    try {
+        const saved = localStorage.getItem('vuka_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+    } catch (e) { /* localStorage unavailable */ }
+})();
+
+function toggleDarkMode() {
+    const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('vuka_theme', next); } catch (e) {}
+    document.querySelectorAll('.theme-toggle-icon').forEach(icon => {
+        icon.className = 'theme-toggle-icon fas ' + (next === 'dark' ? 'fa-sun' : 'fa-moon');
+    });
+}
+
+function initThemeToggleIcon() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    document.querySelectorAll('.theme-toggle-icon').forEach(icon => {
+        icon.className = 'theme-toggle-icon fas ' + (isDark ? 'fa-sun' : 'fa-moon');
+    });
+}
+document.addEventListener('DOMContentLoaded', initThemeToggleIcon);
+
+
 // ============ ALLOWED EMAIL DOMAINS ============
 const ALLOWED_EMAIL_DOMAINS = ['@gmail.com', '@outlook.com', '@hotmail.com', '@yahoo.com', '@ymail.com', '@aol.com', '@icloud.com'];
 
@@ -275,7 +304,10 @@ async function initSupervisorDashboard() {
                         description: document.getElementById('vacancyDesc').value,
                         skills: document.getElementById('vacancySkills').value,
                         positions_count: document.getElementById('vacancyCount').value,
-                        vacancy_type: document.getElementById('vacancyType') ? document.getElementById('vacancyType').value : 'attachment'
+                        vacancy_type: document.getElementById('vacancyType') ? document.getElementById('vacancyType').value : 'attachment',
+                        deadline_at: document.getElementById('vacancyDeadline') && document.getElementById('vacancyDeadline').value
+                            ? document.getElementById('vacancyDeadline').value.replace('T', ' ') + ':00'
+                            : null
                     })
                 });
                 const data = await response.json();
@@ -343,9 +375,10 @@ async function loadSupervisorApplicants(dept, token) {
             return;
         }
 
-        let html = '<table id="supervisorApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>Vacancy</th><th>Institution</th><th>Status</th><th>Assignment</th><th>Action</th></tr></thead><tbody>';
+        let html = '<table id="supervisorApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th style="width:32px;"><input type="checkbox" class="form-check-input bulk-select-all" onchange="bulkToggleAll(this)"></th><th>Name</th><th>Vacancy</th><th>Institution</th><th>Status</th><th>Assignment</th><th>Action</th></tr></thead><tbody>';
         submissions.forEach(s => {
             const assignInfo = s.assigned_role ? `<small>${s.assigned_role}<br>${s.assigned_station || ''}</small>` : '<small class="text-muted">—</small>';
+            const selectable = ['applied', 'pending', 'accepted', 'deployed'].includes(s.status);
             let actions = `<button class="btn btn-sm btn-outline-primary" onclick="viewApplicantDetails(${s.id})">View</button> `;
             if (s.status === 'accepted') {
                 actions += `<button class="btn btn-sm btn-success" onclick="openAssignModal(${s.id}, '${s.full_name.replace(/'/g, "\\'")}')"><i class="fas fa-user-check me-1"></i>Assign & Deploy</button>`;
@@ -354,6 +387,7 @@ async function loadSupervisorApplicants(dept, token) {
                 actions += `<button class="btn btn-sm btn-dark" onclick="supervisorUpdateStatus(${s.id}, 'ongoing', '${token}')"><i class="fas fa-play me-1"></i>Start</button>`;
             }
             html += `<tr>
+                <td>${selectable ? `<input type="checkbox" class="form-check-input bulk-cb" value="${s.id}" onchange="bulkHandleRow(this)">` : ''}</td>
                 <td>${s.full_name}<br><small class="text-muted">${s.national_id}</small></td>
                 <td>${s.vacancy_title || '-'}<br><small class="badge bg-light text-dark">${s.application_type || 'attachment'}</small></td>
                 <td>${s.institution_name || '-'}</td>
@@ -393,6 +427,18 @@ async function viewApplicantDetails(submissionId) {
         const history = data.review_history || [];
 
         let html = `
+        <div class="print-header">
+            <div>
+                <strong>Vuka Attachment &amp; Internship Portal</strong><br>
+                <small>Applicant Detail — Printed ${new Date().toLocaleDateString()}</small>
+            </div>
+            <div><small>Ref: VKP/${(s.department_applied || 'GEN').toUpperCase()}/${s.id}</small></div>
+        </div>
+        <div class="d-flex justify-content-end mb-2 no-print">
+            <button class="btn btn-outline-secondary btn-sm" onclick="printApplicantDetail()">
+                <i class="fas fa-print me-1"></i>Print / Save as PDF
+            </button>
+        </div>
         <div class="row">
             <div class="col-md-6">
                 <h6 class="fw-bold text-muted text-uppercase small">Personal Info</h6>
@@ -455,6 +501,12 @@ async function viewApplicantDetails(submissionId) {
     }
 }
 window.viewApplicantDetails = viewApplicantDetails;
+
+// ============ PRINT APPLICANT DETAIL (Feature #14) ============
+function printApplicantDetail() {
+    window.print();
+}
+window.printApplicantDetail = printApplicantDetail;
 
 // --- HR DASHBOARD ---
 async function initHrDashboard() {
@@ -519,9 +571,11 @@ async function loadHrApplicants(token) {
             return;
         }
 
-        let html = '<table id="hrApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th>Name</th><th>National ID</th><th>Institution</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<table id="hrApplicantsTable" class="table table-hover align-middle"><thead class="table-light"><tr><th style="width:32px;"><input type="checkbox" class="form-check-input bulk-select-all" onchange="bulkToggleAll(this)"></th><th>Name</th><th>National ID</th><th>Institution</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
         subs.forEach(s => {
+            const selectable = ['applied', 'pending', 'accepted', 'deployed'].includes(s.status);
             html += `<tr>
+                <td>${selectable ? `<input type="checkbox" class="form-check-input bulk-cb" value="${s.id}" onchange="bulkHandleRow(this)">` : ''}</td>
                 <td><strong>${s.full_name}</strong><br><small class="text-muted">${s.email}</small></td>
                 <td>${s.national_id}</td>
                 <td>${s.institution_name || '—'}</td>
@@ -581,7 +635,10 @@ function getStatusBadge(status) {
         'approved': { label: 'Accepted', cls: 'bg-success' },
         'rejected': { label: 'Rejected', cls: 'bg-danger' },
         'deployed': { label: 'Deployed', cls: 'bg-primary' },
-        'ongoing': { label: 'Ongoing', cls: 'bg-dark' }
+        'ongoing': { label: 'Ongoing', cls: 'bg-dark' },
+        'interview': { label: 'Interview', cls: 'bg-info text-dark' },
+        'completed': { label: 'Completed', cls: 'bg-success' },
+        'withdrawn': { label: 'Withdrawn', cls: 'bg-secondary' }
     };
     const info = map[status] || map['not_applied'];
     return `<span class="badge ${info.cls}">${info.label}</span>`;
@@ -620,6 +677,9 @@ async function initStudentDashboard() {
             let vHtml = '<div class="list-group">';
             (vData.vacancies || []).forEach(v => {
                 const typeBadge = v.vacancy_type === 'internship' ? '<span class="badge bg-info text-dark ms-2">Internship</span>' : '<span class="badge bg-secondary ms-2">Attachment</span>';
+                const deadlineHtml = v.deadline_at
+                    ? `<div class="small fw-semibold mt-1 vacancy-countdown" data-deadline="${v.deadline_at}"></div>`
+                    : '';
                 vHtml += `<div class="list-group-item list-group-item-action flex-column align-items-start vacancy-card">
                     <div class="d-flex w-100 justify-content-between">
                         <h5 class="mb-1">${v.title}${typeBadge}</h5>
@@ -627,6 +687,7 @@ async function initStudentDashboard() {
                     </div>
                     <p class="mb-1">${v.description}</p>
                     <small class="text-primary">${v.department_name} Dept</small>
+                    ${deadlineHtml}
                     <button class="btn btn-sm btn-primary float-end mt-n3" onclick="openApplyModal(${v.id}, '${v.title.replace(/'/g, "\\'")}', '${(v.department_name || '').replace(/'/g, "\\'")}', '${v.vacancy_type || 'attachment'}')">Apply Now</button>
                 </div>`;
             });
@@ -634,6 +695,7 @@ async function initStudentDashboard() {
             vList.innerHTML = vHtml;
             // Initialise search now that items are rendered
             if (typeof initVacancySearch === 'function') initVacancySearch();
+            if (typeof initVacancyCountdowns === 'function') initVacancyCountdowns();
         }
     } catch (e) {
         console.error('Error loading vacancies:', e);
@@ -660,12 +722,19 @@ async function initStudentDashboard() {
 
                 let hHtml = '<ul class="list-group">';
                 submissions.forEach(s => {
+                    const canWithdraw = ['applied', 'pending'].includes(s.status);
+                    const withdrawBtn = canWithdraw
+                        ? `<button class="btn btn-outline-danger btn-sm ms-2" onclick="withdrawApplication(${s.id})"><i class="fas fa-undo me-1"></i>Withdraw</button>`
+                        : '';
                     hHtml += `<li class="list-group-item d-flex justify-content-between align-items-center">
                         <div>
                             <strong>${s.vacancy_title || s.department_applied}</strong>
                             <br><small class="text-muted">${new Date(s.submitted_at).toLocaleDateString()}</small>
                         </div>
-                        ${getStatusBadge(s.status || s.placement_status)}
+                        <div class="d-flex align-items-center">
+                            ${getStatusBadge(s.status || s.placement_status)}
+                            ${withdrawBtn}
+                        </div>
                     </li>`;
                 });
                 hHtml += '</ul>';
@@ -1261,3 +1330,224 @@ function exportCSV(tableId = null, filename = 'vuka-export.csv') {
     a.download = filename;
     a.click();
 }
+
+
+// ============ NOTIFICATION BELL (Feature #5) ============
+function notifGetToken() {
+    return sessionStorage.getItem('adminToken') || sessionStorage.getItem('userToken') || '';
+}
+
+function notifEscape(str) {
+    return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function notifTimeAgo(dateStr) {
+    const then = new Date(String(dateStr || '').replace(' ', 'T'));
+    const secs = Math.floor((Date.now() - then.getTime()) / 1000);
+    if (isNaN(secs)) return '';
+    if (secs < 60) return 'just now';
+    const mins = Math.floor(secs / 60); if (mins < 60) return mins + 'm ago';
+    const hrs = Math.floor(mins / 60); if (hrs < 24) return hrs + 'h ago';
+    const days = Math.floor(hrs / 24); if (days < 7) return days + 'd ago';
+    return then.toLocaleDateString();
+}
+
+async function pollNotifications() {
+    const badge = document.getElementById('notifBadge');
+    const list = document.getElementById('notifList');
+    if (!badge || !list) return;
+    const token = notifGetToken();
+    if (!token) return;
+    try {
+        const res = await fetch(`${API_BASE}/notifications.php`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        badge.textContent = data.unread_count;
+        badge.classList.toggle('d-none', !data.unread_count);
+        list.innerHTML = (data.notifications && data.notifications.length)
+            ? data.notifications.map(n => `
+                <a href="${n.link || '#'}" class="d-block px-3 py-2 border-bottom text-decoration-none ${Number(n.is_read) === 0 ? 'bg-light' : ''}" style="color:inherit;">
+                    <div class="fw-semibold small">${notifEscape(n.title)}</div>
+                    <div class="text-muted small">${notifEscape(n.body)}</div>
+                    <div class="text-muted" style="font-size:11px;">${notifTimeAgo(n.created_at)}</div>
+                </a>`).join('')
+            : '<div class="p-3 text-muted small text-center">No notifications yet</div>';
+    } catch (e) { /* silent — polling is best-effort */ }
+}
+
+function toggleNotifDropdown() {
+    const dd = document.getElementById('notifDropdown');
+    if (!dd) return;
+    dd.classList.toggle('d-none');
+    if (!dd.classList.contains('d-none')) {
+        const token = notifGetToken();
+        if (token) {
+            fetch(`${API_BASE}/notifications.php`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ action: 'mark_read' })
+            }).then(() => {
+                const b = document.getElementById('notifBadge');
+                if (b) b.classList.add('d-none');
+            }).catch(() => {});
+        }
+    }
+}
+
+function initNotificationBell() {
+    if (!document.getElementById('notifBell')) return;
+    pollNotifications();
+    setInterval(pollNotifications, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNotifications(); });
+    document.addEventListener('click', (e) => {
+        const wrap = document.getElementById('notifBellWrapper');
+        const dd = document.getElementById('notifDropdown');
+        if (wrap && dd && !wrap.contains(e.target)) dd.classList.add('d-none');
+    });
+}
+document.addEventListener('DOMContentLoaded', initNotificationBell);
+
+
+// ============ BULK ACTIONS (Feature #6) ============
+let bulkSelectedIds = new Set();
+
+function bulkHandleRow(cb) {
+    const id = parseInt(cb.value, 10);
+    if (cb.checked) bulkSelectedIds.add(id); else bulkSelectedIds.delete(id);
+    bulkUpdateBar();
+}
+
+function bulkToggleAll(masterCb) {
+    document.querySelectorAll('.bulk-cb').forEach(cb => {
+        cb.checked = masterCb.checked;
+        const id = parseInt(cb.value, 10);
+        if (masterCb.checked) bulkSelectedIds.add(id); else bulkSelectedIds.delete(id);
+    });
+    bulkUpdateBar();
+}
+
+function bulkClearSelection() {
+    bulkSelectedIds.clear();
+    document.querySelectorAll('.bulk-cb, .bulk-select-all').forEach(cb => { cb.checked = false; });
+    bulkUpdateBar();
+}
+
+function bulkUpdateBar() {
+    let bar = document.getElementById('bulkActionBar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'bulkActionBar';
+        bar.className = 'd-none position-fixed bottom-0 start-0 end-0 bg-dark text-white p-3 d-flex align-items-center justify-content-between';
+        bar.style.zIndex = '1055';
+        bar.innerHTML = `
+            <span id="bulkCount" class="fw-semibold"></span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-success btn-sm" onclick="bulkAction('accepted')"><i class="fas fa-check me-1"></i>Accept</button>
+                <button class="btn btn-danger btn-sm" onclick="bulkAction('rejected')"><i class="fas fa-times me-1"></i>Reject</button>
+                <button class="btn btn-outline-light btn-sm" onclick="bulkExportSelected()"><i class="fas fa-download me-1"></i>Export CSV</button>
+                <button class="btn btn-secondary btn-sm" onclick="bulkClearSelection()">Cancel</button>
+            </div>`;
+        document.body.appendChild(bar);
+    }
+    const count = document.getElementById('bulkCount');
+    if (bulkSelectedIds.size > 0) {
+        bar.classList.remove('d-none');
+        if (count) count.textContent = `${bulkSelectedIds.size} selected`;
+    } else {
+        bar.classList.add('d-none');
+    }
+}
+
+async function bulkAction(status) {
+    if (bulkSelectedIds.size === 0) return;
+    let rejectionReason = '';
+    if (status === 'rejected') {
+        rejectionReason = prompt('Reason for rejecting the selected application(s):') || '';
+        if (!rejectionReason.trim()) { showToast('Rejection reason is required.', 'warning'); return; }
+    }
+    if (!confirm(`${status.toUpperCase()} ${bulkSelectedIds.size} application(s)?`)) return;
+
+    const token = sessionStorage.getItem('adminToken');
+    try {
+        const res = await fetch(`${API_BASE}/bulk-update-submissions.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ ids: [...bulkSelectedIds], status, rejection_reason: rejectionReason })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`${data.updated} updated${data.skipped ? `, ${data.skipped} skipped` : ''}.`, 'success');
+            bulkClearSelection();
+            // Refresh whichever applicant list is present.
+            const t = sessionStorage.getItem('adminToken');
+            if (typeof loadHrApplicants === 'function' && document.getElementById('hrApplicantsTable')) loadHrApplicants(t);
+            if (typeof loadSupervisorApplicants === 'function' && document.getElementById('supervisorApplicantsTable')) {
+                loadSupervisorApplicants(sessionStorage.getItem('adminDept'), t);
+            }
+        } else {
+            showToast(data.error || data.message || 'Bulk update failed.', 'error');
+        }
+    } catch (e) {
+        showToast('Bulk update error: ' + e.message, 'error');
+    }
+}
+
+function bulkExportSelected() {
+    // Export only the selected rows from whichever applicant table is visible.
+    const table = document.getElementById('hrApplicantsTable') || document.getElementById('supervisorApplicantsTable');
+    if (!table) return;
+    let csv = [];
+    table.querySelectorAll('tr').forEach(row => {
+        const cb = row.querySelector('.bulk-cb');
+        const isHeader = row.querySelector('th');
+        if (!isHeader && (!cb || !cb.checked)) return; // keep header + selected rows
+        const cols = [...row.querySelectorAll('th, td')]
+            .filter((_, i) => i !== 0) // drop the checkbox column
+            .map(c => '"' + c.innerText.replace(/"/g, '""').replace(/\s+/g, ' ').trim() + '"');
+        csv.push(cols.join(','));
+    });
+    const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'selected-applicants.csv';
+    a.click();
+}
+
+
+// ============ REUSABLE PAGINATION (Feature #11) ============
+// meta = { page, per_page, total, total_pages }
+// onPageChange: a GLOBAL function name (string) taking a page number.
+function renderPagination(containerId, meta, onPageChangeName) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!meta || meta.total_pages <= 1) { el.innerHTML = ''; return; }
+
+    const page = meta.page;
+    const totalPages = meta.total_pages;
+    let html = '<nav><ul class="pagination pagination-sm mb-0 justify-content-center">';
+
+    html += `<li class="page-item ${page === 1 ? 'disabled' : ''}">
+                <button class="page-link" onclick="${onPageChangeName}(${page - 1})">&lsaquo;</button>
+             </li>`;
+
+    for (let p = 1; p <= totalPages; p++) {
+        if (p === 1 || p === totalPages || Math.abs(p - page) <= 1) {
+            html += `<li class="page-item ${p === page ? 'active' : ''}">
+                        <button class="page-link" onclick="${onPageChangeName}(${p})">${p}</button>
+                     </li>`;
+        } else if (Math.abs(p - page) === 2) {
+            html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+        }
+    }
+
+    html += `<li class="page-item ${page === totalPages ? 'disabled' : ''}">
+                <button class="page-link" onclick="${onPageChangeName}(${page + 1})">&rsaquo;</button>
+             </li>`;
+    html += '</ul></nav>';
+    el.innerHTML = html;
+}
+window.renderPagination = renderPagination;

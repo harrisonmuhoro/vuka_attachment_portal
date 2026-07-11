@@ -10,16 +10,20 @@ ini_set('log_errors', 1);
 ob_start();
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/rate-limiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
 
+// Block brute-force attempts before doing any credential work.
+checkRateLimit($pdo, 'login');
+
 try {
     $raw_input = file_get_contents('php://input');
     $data = json_decode($raw_input, true);
-    
+
     if ($data === null) {
         ob_end_clean();
         json_response(false, null, 'Invalid JSON input');
@@ -86,6 +90,9 @@ try {
             // Determine redirect based on role (Student is role_id 4)
             $redirect = 'pages/student_dashboard.php';
 
+            clearLoginAttempts($pdo, 'login');
+            recordLoginAttempt($pdo, 'login', true, $identifier);
+
             ob_end_clean();
             json_response(true, [
                 'role' => 'student',
@@ -137,6 +144,9 @@ try {
         elseif ($roleId == 2) $redirect = 'pages/hr_dashboard.php';
         elseif ($roleId == 3) $redirect = 'pages/supervisor_dashboard.php';
 
+        clearLoginAttempts($pdo, 'login');
+        recordLoginAttempt($pdo, 'login', true, $identifier);
+
         ob_end_clean();
         json_response(true, [
             'role' => 'admin',
@@ -150,6 +160,7 @@ try {
     }
 
     // --- 3. Login Failed ---
+    recordLoginAttempt($pdo, 'login', false, $identifier);
     ob_end_clean();
     json_response(false, null, 'Invalid credentials');
 

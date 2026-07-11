@@ -68,7 +68,24 @@ try {
         ob_end_clean();
         json_response(false, null, 'You have already submitted an application');
     }
-    
+
+    // Enforce vacancy availability + application deadline (Feature #7)
+    if (!empty($vacancyId)) {
+        $vStmt = $pdo->prepare("SELECT status, deadline_at FROM vacancies WHERE id = ? LIMIT 1");
+        $vStmt->execute([$vacancyId]);
+        $vac = $vStmt->fetch();
+        if ($vac) {
+            if ($vac['status'] !== 'approved') {
+                ob_end_clean();
+                json_response(false, null, 'This vacancy is no longer accepting applications.');
+            }
+            if (!empty($vac['deadline_at']) && strtotime($vac['deadline_at']) < time()) {
+                ob_end_clean();
+                json_response(false, null, 'The application deadline for this vacancy has passed.');
+            }
+        }
+    }
+
     // Begin transaction
     $pdo->beginTransaction();
     

@@ -252,3 +252,49 @@ if (adminLoginForm) adminLoginForm.addEventListener('submit', async function (e)
     finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Admin Login'; }
 });
 
+
+// ============ FORGOT PASSWORD ============
+let forgotPasswordModal = null;
+const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+if (forgotPasswordLink) {
+    forgotPasswordLink.addEventListener('click', function (e) {
+        e.preventDefault();
+        const el = document.getElementById('forgotPasswordModal');
+        if (!forgotPasswordModal && el) forgotPasswordModal = new bootstrap.Modal(el);
+        // Pre-fill with whatever is typed in the login field if it looks like an email.
+        const loginVal = (document.getElementById('loginId')?.value || '').trim();
+        const emailInput = document.getElementById('forgotEmail');
+        if (emailInput && loginVal.includes('@')) emailInput.value = loginVal;
+        if (forgotPasswordModal) forgotPasswordModal.show();
+    });
+}
+
+const forgotPasswordForm = document.getElementById('forgotPasswordForm');
+if (forgotPasswordForm) forgotPasswordForm.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const email = document.getElementById('forgotEmail').value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('Please enter a valid email address.', 'warning');
+        return;
+    }
+    const btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Sending...';
+    try {
+        const response = await fetch(`${API_BASE}/forgot-password.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await response.json();
+        showToast(data.message || 'If that email is registered, a reset link has been sent.', 'success');
+        if (forgotPasswordModal) forgotPasswordModal.hide();
+        forgotPasswordForm.reset();
+    } catch (error) {
+        showToast('Request failed: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false; btn.innerHTML = original;
+    }
+});
+

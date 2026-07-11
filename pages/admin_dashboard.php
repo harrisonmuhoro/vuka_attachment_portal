@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var t=localStorage.getItem('vuka_theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>Vuka — System Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -25,6 +26,19 @@
             <div style="color:#fff; font-size:0.9rem; font-weight:600; line-height:1.1;" id="adminNameDisplay"></div>
             <div style="color:rgba(255,255,255,0.7); font-size:0.75rem;">
                 <span id="adminDeptDisplay"></span> <span id="adminPFDisplay"></span>
+            </div>
+        </div>
+        <button type="button" class="btn btn-link p-0 me-3 theme-toggle-btn" onclick="toggleDarkMode()" title="Toggle dark mode" aria-label="Toggle dark mode">
+            <i class="theme-toggle-icon fas fa-moon" style="font-size:1.1rem;"></i>
+        </button>
+        <div class="position-relative me-3" id="notifBellWrapper">
+            <button type="button" class="btn btn-link p-0" id="notifBell" onclick="toggleNotifDropdown()" style="color:#fff; text-decoration:none;" title="Notifications">
+                <i class="fas fa-bell" style="font-size:1.15rem;"></i>
+                <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" style="font-size:0.6rem;">0</span>
+            </button>
+            <div id="notifDropdown" class="d-none shadow bg-white rounded" style="position:absolute; right:0; top:130%; width:320px; max-height:420px; overflow-y:auto; z-index:1080; border:1px solid #e0e0e0;">
+                <div class="px-3 py-2 border-bottom fw-semibold small text-dark">Notifications</div>
+                <div id="notifList"></div>
             </div>
         </div>
         <button class="btn btn-sm" style="background: var(--c-clay); color: #fff; border: none;" id="logoutBtn">

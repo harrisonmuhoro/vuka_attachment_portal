@@ -1,26 +1,16 @@
-// ============ HR ANALYTICS (Bar Chart) ============
+// ============ HR ANALYTICS (Bar Chart — Feature #10 server-side aggregation) ============
 async function loadHrAnalytics() {
     const token = sessionStorage.getItem('adminToken');
     try {
-        const res = await fetch(`${API_BASE}/get-submissions.php`, {
+        const res = await fetch(`${API_BASE}/get-analytics.php`, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        const subs = data.submissions || [];
+        const acceptance = (data.success && data.data && data.data.acceptance) ? data.data.acceptance : [];
 
-        // Group by department
-        const deptCounts = {};
-        subs.forEach(s => {
-            const dept = s.department_applied || s.department || 'Unknown';
-            deptCounts[dept] = (deptCounts[dept] || 0) + 1;
-        });
-
-        const labels = Object.keys(deptCounts);
-        const values = Object.values(deptCounts);
-        const colors = labels.map((_, i) => {
-            const palette = ['#0F7A45', '#C5401A', '#1E40AF', '#D4960A', '#1A8F52', '#6B7A72'];
-            return palette[i % palette.length];
-        });
+        const labels = acceptance.map(r => r.department || 'Unknown');
+        const totals = acceptance.map(r => Number(r.total) || 0);
+        const accepted = acceptance.map(r => Number(r.accepted) || 0);
 
         const ctx = document.getElementById('hrChart');
         if (ctx) {
@@ -28,18 +18,27 @@ async function loadHrAnalytics() {
                 type: 'bar',
                 data: {
                     labels,
-                    datasets: [{
-                        label: 'Applicants',
-                        data: values,
-                        backgroundColor: colors,
-                        borderRadius: 6,
-                        borderWidth: 0
-                    }]
+                    datasets: [
+                        {
+                            label: 'Total applicants',
+                            data: totals,
+                            backgroundColor: '#0F7A45',
+                            borderRadius: 6,
+                            borderWidth: 0
+                        },
+                        {
+                            label: 'Placed',
+                            data: accepted,
+                            backgroundColor: '#D4960A',
+                            borderRadius: 6,
+                            borderWidth: 0
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { position: 'bottom' } },
                     scales: {
                         y: {
                             beginAtZero: true,

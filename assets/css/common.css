@@ -1035,3 +1035,122 @@ footer strong {
     from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ============================================================
+   DARK MODE (Feature #8) — activated by <html data-theme="dark">
+   ============================================================ */
+[data-theme="dark"] {
+    --bg-light:      #121212;
+    --bg-cream:      #1a1a1a;
+    --text-dark:     #e9ecef;
+    --text-muted:    #adb5bd;
+    --c-surface:     #1e1e1e;
+    --c-ink:         #e9ecef;
+    --c-slate:       #adb5bd;
+    --c-white:       #1e1e1e;
+    --c-border:      #2d2d2d;
+    --county-white:  #e9ecef;
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] body { background: var(--bg-light); color: var(--text-dark); }
+
+/* Bootstrap surface overrides so cards/tables/inputs follow the theme */
+[data-theme="dark"] .bg-light,
+[data-theme="dark"] .bg-white,
+[data-theme="dark"] .card,
+[data-theme="dark"] .list-group-item,
+[data-theme="dark"] .modal-content,
+[data-theme="dark"] .dropdown-menu {
+    background-color: #1e1e1e !important;
+    color: var(--text-dark);
+    border-color: #2d2d2d;
+}
+[data-theme="dark"] .card-header.bg-white,
+[data-theme="dark"] .table-light > *,
+[data-theme="dark"] thead.table-light th {
+    background-color: #262626 !important;
+    color: var(--text-dark) !important;
+}
+[data-theme="dark"] .table { color: var(--text-dark); }
+[data-theme="dark"] .table > :not(caption) > * > * { background-color: transparent; }
+[data-theme="dark"] .text-dark { color: var(--text-dark) !important; }
+[data-theme="dark"] .text-muted { color: #9aa4ac !important; }
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] .input-group-text {
+    background-color: #262626;
+    color: var(--text-dark);
+    border-color: #3a3a3a;
+}
+[data-theme="dark"] .form-control::placeholder { color: #7a8288; }
+[data-theme="dark"] .nav-tabs .nav-link { color: var(--text-muted); }
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: #1e1e1e;
+    color: var(--c-green);
+    border-color: #2d2d2d #2d2d2d #1e1e1e;
+}
+[data-theme="dark"] .border,
+[data-theme="dark"] .border-bottom,
+[data-theme="dark"] .border-top { border-color: #2d2d2d !important; }
+[data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, #202020 25%, #2a2a2a 50%, #202020 75%);
+    background-size: 200% 100%;
+}
+/* Header stays its dark green in both themes — no override needed */
+.theme-toggle-btn { color: #fff; text-decoration: none; background: none; border: none; }
+
+/* ============================================================
+   PRINT-FRIENDLY VIEW (Feature #14)
+   ============================================================ */
+.print-header { display: none; }
+
+@media print {
+    /* Hide chrome that shouldn't appear on paper */
+    .official-header,
+    .navbar,
+    .modal-header .btn-close,
+    .btn,
+    .nav-tabs,
+    .pagination,
+    #bulkActionBar,
+    #notifBellWrapper,
+    #toastContainer,
+    .theme-toggle-btn,
+    .no-print {
+        display: none !important;
+    }
+
+    /* Force a clean light layout regardless of dark mode */
+    html[data-theme="dark"], body, [data-theme="dark"] body {
+        background: #ffffff !important;
+        color: #000000 !important;
+    }
+
+    /* Let the active modal print as a normal page */
+    .modal { position: static !important; display: block !important; opacity: 1 !important; }
+    .modal-dialog { max-width: 100% !important; margin: 0 !important; }
+    .modal-content { border: none !important; box-shadow: none !important; }
+    .modal-backdrop { display: none !important; }
+
+    body { font-size: 12pt; margin: 0; }
+
+    .print-header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8pt;
+        margin-bottom: 16pt;
+    }
+
+    table, th, td {
+        border: 1px solid #999 !important;
+        border-collapse: collapse !important;
+    }
+
+    .page-break-before { page-break-before: always; }
+    .page-break-after  { page-break-after: always; }
+}

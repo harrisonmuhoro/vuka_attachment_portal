@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>(function(){try{var t=localStorage.getItem('vuka_theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>Vuka — Attachment Portal</title>
     <meta name="description" content="Official Student Attachment Platform for the Vuka.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -17,6 +18,10 @@
 
     <!-- TOAST CONTAINER -->
     <div class="toast-container" id="toastContainer"></div>
+
+    <button type="button" class="btn btn-sm theme-toggle-btn position-fixed" onclick="toggleDarkMode()" title="Toggle dark mode" aria-label="Toggle dark mode" style="top:14px; right:14px; z-index:2000; color: var(--c-green);">
+        <i class="theme-toggle-icon fas fa-moon" style="font-size:1.2rem;"></i>
+    </button>
 
     <!-- LOADING OVERLAY -->
     <div class="loading-overlay" id="loadingOverlay">
@@ -92,6 +97,9 @@
                                                                 class="fas fa-eye"></i></button>
                                                     </div>
                                                 </div>
+                                            </div>
+                                            <div class="text-end mb-3">
+                                                <a href="#" id="forgotPasswordLink" class="small text-decoration-none">Forgot password?</a>
                                             </div>
                                             <div class="d-grid">
                                                 <button type="submit" class="btn btn-primary btn-lg">
@@ -680,6 +688,32 @@
                     <p class="mt-3 small text-muted">
                         Didn't receive it? <a href="#" id="resendVerifyLink">Resend Code</a>
                     </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password -->
+    <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-key text-primary me-2"></i>Reset Password</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">Enter your account email. If it's registered, we'll send you a link to reset your password.</p>
+                    <form id="forgotPasswordForm" novalidate>
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                            <input type="email" class="form-control" id="forgotEmail" placeholder="you@example.com" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i>Send Reset Link
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

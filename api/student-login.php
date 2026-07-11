@@ -16,11 +16,14 @@ ob_start();
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
+require_once __DIR__ . '/../lib/rate-limiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
+
+checkRateLimit($pdo, 'student-login');
 
 try {
     $input = file_get_contents('php://input');
@@ -50,6 +53,7 @@ try {
     $student = $stmt->fetch();
     
     if (!$student) {
+        recordLoginAttempt($pdo, 'student-login', false, $nationalId);
         ob_end_clean();
         json_response(false, null, 'Invalid credentials');
     }
@@ -62,6 +66,7 @@ try {
     
     // Verify password
     if (!password_verify($password, $student['password_hash'])) {
+        recordLoginAttempt($pdo, 'student-login', false, $nationalId);
         ob_end_clean();
         json_response(false, null, 'Invalid credentials');
     }
@@ -97,7 +102,10 @@ try {
     // Update last login
     $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
     $stmt->execute([$student['id']]);
-    
+
+    clearLoginAttempts($pdo, 'student-login');
+    recordLoginAttempt($pdo, 'student-login', true, $nationalId);
+
     ob_end_clean();
     json_response(true, [
         // createSession sets a cookie, but Bearer clients need the session_id surfaced as 'token'

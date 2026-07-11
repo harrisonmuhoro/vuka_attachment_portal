@@ -13,6 +13,9 @@ ob_start();
 
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/mailer.php';
+require_once __DIR__ . '/../lib/email-templates.php';
+require_once __DIR__ . '/../lib/notifications.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -87,7 +90,7 @@ try {
     }
     
     // Verify submission exists
-    $stmt = $pdo->prepare("SELECT id, department_applied, intern_pf_number, application_type FROM submissions WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, user_id, full_name, email, department_applied, intern_pf_number, application_type FROM submissions WHERE id = ?");
     $stmt->execute([$submissionId]);
     $submission = $stmt->fetch();
     
@@ -136,7 +139,50 @@ try {
         VALUES (?, ?, ?, ?, ?)
     ");
     $stmt->execute([$submissionId, $pfNumber, $department, $newStatus, $notes]);
-    
+    $reviewHistoryId = (int) $pdo->lastInsertId();
+
+    // ---- Notify the student (email + in-app) ----
+    $studentName = $submission['full_name'] ?? 'Applicant';
+    $studentEmail = $submission['email'] ?? '';
+    $deptName = $submission['department_applied'] ?: ($department ?: 'the');
+    $notifyStatuses = ['accepted', 'rejected', 'deployed', 'ongoing', 'interview', 'completed'];
+
+    if (in_array($newStatus, $notifyStatuses, true)) {
+        // Email (log-only if SMTP not configured)
+        if (!empty($studentEmail)) {
+            $sent = sendMail(
+                $studentEmail,
+                $studentName,
+                "Application Update — " . ucfirst($newStatus),
+                emailStatusChanged($studentName, $newStatus, $deptName)
+            );
+            if ($sent) {
+                $pdo->prepare("UPDATE review_history SET email_sent = 1, email_sent_at = NOW() WHERE id = ?")
+                    ->execute([$reviewHistoryId]);
+            }
+        }
+
+        // In-app notification for the student
+        if (!empty($submission['user_id'])) {
+            $titles = [
+                'accepted'  => 'Application Accepted',
+                'rejected'  => 'Application Update',
+                'deployed'  => 'You have been deployed',
+                'ongoing'   => 'Placement is now ongoing',
+                'interview' => 'Interview scheduled',
+                'completed' => 'Attachment completed',
+            ];
+            createNotification(
+                $pdo,
+                (int) $submission['user_id'],
+                'student',
+                $titles[$newStatus] ?? 'Application Update',
+                "Your application status is now: {$newStatus}.",
+                '../pages/student_dashboard.php'
+            );
+        }
+    }
+
     $responseData = ['message' => "Status updated to $newStatus"];
     if ($internPf) $responseData['intern_pf_number'] = $internPf;
     

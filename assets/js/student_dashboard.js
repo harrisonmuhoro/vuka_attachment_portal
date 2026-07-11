@@ -74,6 +74,58 @@ function initVacancySearch() {
     }
 }
 
+// ============ WITHDRAW APPLICATION (Feature #12) ============
+async function withdrawApplication(submissionId) {
+    if (!confirm('Are you sure you want to withdraw this application? This cannot be undone.')) return;
+
+    const token = sessionStorage.getItem('userToken');
+    try {
+        const res = await fetch(`${API_BASE}/withdraw-application.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ submission_id: submissionId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message || 'Application withdrawn.', 'success');
+            if (typeof initStudentDashboard === 'function') initStudentDashboard();
+        } else {
+            showToast(data.error || data.message || 'Failed to withdraw.', 'error');
+        }
+    } catch (e) {
+        showToast('Withdraw error: ' + e.message, 'error');
+    }
+}
+
+// ============ VACANCY DEADLINE COUNTDOWNS (Feature #7) ============
+let vacancyCountdownTimer = null;
+function initVacancyCountdowns() {
+    const els = document.querySelectorAll('.vacancy-countdown');
+    if (!els.length) return;
+
+    const render = () => {
+        document.querySelectorAll('.vacancy-countdown').forEach(el => {
+            const deadline = new Date(String(el.dataset.deadline || '').replace(' ', 'T')).getTime();
+            if (isNaN(deadline)) { el.textContent = ''; return; }
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) {
+                el.textContent = '⏳ Deadline passed';
+                el.className = 'small fw-semibold mt-1 vacancy-countdown text-danger';
+                return;
+            }
+            const d = Math.floor(remaining / 86400000);
+            const h = Math.floor((remaining % 86400000) / 3600000);
+            const m = Math.floor((remaining % 3600000) / 60000);
+            el.textContent = `⏳ Closes in: ${d}d ${h}h ${m}m`;
+            el.className = 'small fw-semibold mt-1 vacancy-countdown ' + (d < 2 ? 'text-danger' : 'text-warning');
+        });
+    };
+
+    render();
+    if (vacancyCountdownTimer) clearInterval(vacancyCountdownTimer);
+    vacancyCountdownTimer = setInterval(render, 60000);
+}
+
 // Initialise when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
     initVacancySearch();

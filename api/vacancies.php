@@ -18,6 +18,10 @@ $input = json_decode(file_get_contents('php://input'), true);
 try {
     // 1. GET Requests (List Vacancies)
     if ($method === 'GET') {
+        // Auto-close any approved vacancies whose deadline has passed (Feature #7).
+        $pdo->exec("UPDATE vacancies SET status = 'closed'
+                    WHERE deadline_at IS NOT NULL AND deadline_at < NOW() AND status = 'approved'");
+
         $department = isset($_GET['department']) ? $_GET['department'] : null;
         $status = isset($_GET['status']) ? $_GET['status'] : 'approved'; // Default to approved (public view)
         
@@ -69,10 +73,13 @@ try {
                 $deptName = $input['department'] ?? $deptName;
             }
 
-            $stmt = $pdo->prepare("INSERT INTO vacancies (department_name, title, description, skills_required, positions_count, vacancy_type, status, created_by) 
-                                   VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)");
+            // Optional application deadline (Feature #7)
+            $deadlineAt = !empty($input['deadline_at']) ? $input['deadline_at'] : null;
+
+            $stmt = $pdo->prepare("INSERT INTO vacancies (department_name, title, description, skills_required, positions_count, vacancy_type, deadline_at, status, created_by)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)");
             $vacancyType = $input['vacancy_type'] ?? 'attachment';
-            $stmt->execute([$deptName, $title, $desc, $skills, $count, $vacancyType, $session['admin_id']]);
+            $stmt->execute([$deptName, $title, $desc, $skills, $count, $vacancyType, $deadlineAt, $session['admin_id']]);
             
             ob_end_clean();
             json_response(true, ['message' => 'Vacancy request submitted for approval.']);

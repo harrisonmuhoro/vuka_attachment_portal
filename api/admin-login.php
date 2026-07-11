@@ -12,11 +12,14 @@ ini_set('log_errors', 1);
 ob_start();
 
 require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../lib/rate-limiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
+
+checkRateLimit($pdo, 'admin-login');
 
 try {
     $input = file_get_contents('php://input');
@@ -46,6 +49,7 @@ try {
     $admin = $stmt->fetch();
     
     if (!$admin) {
+        recordLoginAttempt($pdo, 'admin-login', false, $pfNumber);
         ob_end_clean();
         json_response(false, null, 'Invalid PF Number or password');
     }
@@ -63,6 +67,7 @@ try {
     
     // Verify password
     if (!password_verify($password, $admin['password_hash'])) {
+        recordLoginAttempt($pdo, 'admin-login', false, $pfNumber);
         ob_end_clean();
         json_response(false, null, 'Invalid PF Number or password');
     }
@@ -82,7 +87,10 @@ try {
     // Update last login
     $stmt = $pdo->prepare("UPDATE admin_users SET last_login = NOW() WHERE id = ?");
     $stmt->execute([$admin['id']]);
-    
+
+    clearLoginAttempts($pdo, 'admin-login');
+    recordLoginAttempt($pdo, 'admin-login', true, $pfNumber);
+
     // Determine role name fallback
     $roleName = $admin['role_name'] ?? 'department_supervisor';
     $department = $admin['department'] ?? 'HR';
