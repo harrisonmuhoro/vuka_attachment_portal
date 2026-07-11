@@ -347,31 +347,40 @@ async function loadSupervisorVacancies(dept, token) {
     } catch (e) { console.error(e); }
 }
 
+// Current supervisor applicants page state (Feature #11 pagination)
+let _supervisorCurrentPage = 1;
+window.supervisorApplicantsPage = function(p) {
+    _supervisorCurrentPage = p;
+    const dept = sessionStorage.getItem('adminDept');
+    const token = sessionStorage.getItem('adminToken');
+    loadSupervisorApplicants(dept, token);
+};
+
 async function loadSupervisorApplicants(dept, token) {
     try {
-        const res = await fetch(`${API_BASE}/get-submissions.php?department=${encodeURIComponent(dept)}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const statusFilter = document.getElementById('filterApplicantStatus')?.value || 'all';
+        const typeFilter = document.getElementById('filterApplicantType')?.value || 'all';
+
+        // Build query — send status/type as server-side filters when set, otherwise all and filter client-side for stat counts
+        let url = `${API_BASE}/get-submissions.php?department=${encodeURIComponent(dept)}&page=${_supervisorCurrentPage}&per_page=20`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
         let submissions = data.submissions || [];
         const list = document.getElementById('applicantsList');
 
-        // Apply filters
-        const statusFilter = document.getElementById('filterApplicantStatus')?.value || 'all';
-        const typeFilter = document.getElementById('filterApplicantType')?.value || 'all';
+        // Client-side filter for type (server doesn't support it yet)
+        if (statusFilter !== 'all') submissions = submissions.filter(s => s.status === statusFilter);
+        if (typeFilter !== 'all') submissions = submissions.filter(s => s.application_type === typeFilter);
 
-        if (statusFilter !== 'all') {
-            submissions = submissions.filter(s => s.status === statusFilter);
-        }
-        if (typeFilter !== 'all') {
-            submissions = submissions.filter(s => s.application_type === typeFilter);
-        }
+        const pendingEl = document.getElementById('statPending');
+        const selectedEl = document.getElementById('statSelected');
+        if (pendingEl) pendingEl.textContent = submissions.filter(s => ['applied', 'pending'].includes(s.status)).length;
+        if (selectedEl) selectedEl.textContent = submissions.filter(s => ['accepted', 'deployed', 'ongoing'].includes(s.status)).length;
 
-        document.getElementById('statPending').textContent = submissions.filter(s => ['applied', 'pending'].includes(s.status)).length;
-        document.getElementById('statSelected').textContent = submissions.filter(s => ['accepted', 'deployed', 'ongoing'].includes(s.status)).length;
-
+        if (!list) return;
         if (submissions.length === 0) {
             list.innerHTML = '<div class="text-center text-muted py-3">No applications found matching the filters.</div>';
+            renderPagination('supervisorPaginationContainer', null, 'supervisorApplicantsPage');
             return;
         }
 
@@ -381,7 +390,7 @@ async function loadSupervisorApplicants(dept, token) {
             const selectable = ['applied', 'pending', 'accepted', 'deployed'].includes(s.status);
             let actions = `<button class="btn btn-sm btn-outline-primary" onclick="viewApplicantDetails(${s.id})">View</button> `;
             if (s.status === 'accepted') {
-                actions += `<button class="btn btn-sm btn-success" onclick="openAssignModal(${s.id}, '${s.full_name.replace(/'/g, "\\'")}')"><i class="fas fa-user-check me-1"></i>Assign & Deploy</button>`;
+                actions += `<button class="btn btn-sm btn-success" onclick="openAssignModal(${s.id}, '${s.full_name.replace(/'/g, "\'")}')" ><i class="fas fa-user-check me-1"></i>Assign &amp; Deploy</button>`;
             }
             if (s.status === 'deployed') {
                 actions += `<button class="btn btn-sm btn-dark" onclick="supervisorUpdateStatus(${s.id}, 'ongoing', '${token}')"><i class="fas fa-play me-1"></i>Start</button>`;
@@ -398,6 +407,11 @@ async function loadSupervisorApplicants(dept, token) {
         });
         html += '</tbody></table>';
         list.innerHTML = html;
+
+        // Render pagination controls (#11)
+        if (typeof renderPagination === 'function') {
+            renderPagination('supervisorPaginationContainer', data.pagination || null, 'supervisorApplicantsPage');
+        }
     } catch (e) { console.error(e); }
 }
 
@@ -495,6 +509,27 @@ async function viewApplicantDetails(submissionId) {
             html += '</ul>';
         }
 
+        // ---- Tier 5 action buttons: PDF letters (#2) / interview (#3) / evaluation (#4) ----
+        const _role = getAdminRole();
+        const _nameArg = (s.full_name || '').replace(/'/g, "\\'");
+        const _letter = { accepted: ['offer', 'Offer Letter'], rejected: ['rejection', 'Rejection Letter'], deployed: ['deployment', 'Deployment Certificate'] }[s.status];
+        let _actions = '';
+        if (_letter) {
+            _actions += `<button class="btn btn-outline-primary btn-sm" onclick="downloadLetter(${s.id}, '${_letter[0]}')"><i class="fas fa-file-pdf me-1"></i>${_letter[1]}</button>`;
+        }
+        if ((s.status === 'accepted' || s.status === 'interview') && typeof openScheduleInterviewModal === 'function') {
+            _actions += `<button class="btn btn-primary btn-sm" onclick="openScheduleInterviewModal(${s.id}, '${_nameArg}')"><i class="fas fa-calendar-plus me-1"></i>Schedule Interview</button>`;
+        }
+        if ((s.status === 'ongoing' || s.status === 'completed') && _role === 'department_supervisor' && typeof openEvaluationModal === 'function') {
+            _actions += `<button class="btn btn-success btn-sm" onclick="openEvaluationModal(${s.id}, '${_nameArg}')"><i class="fas fa-clipboard-check me-1"></i>Evaluate Intern</button>`;
+        }
+        if (s.status === 'completed' && ['super_admin', 'hr_coordinator', 'department_supervisor'].includes(_role) && typeof viewEvaluation === 'function') {
+            _actions += `<button class="btn btn-outline-primary btn-sm" onclick="viewEvaluation(${s.id})"><i class="fas fa-eye me-1"></i>View Evaluation</button>`;
+        }
+        if (_actions) {
+            html += `<hr><div class="d-flex flex-wrap gap-2 no-print">${_actions}</div>`;
+        }
+
         body.innerHTML = html;
     } catch (e) {
         body.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
@@ -507,6 +542,31 @@ function printApplicantDetail() {
     window.print();
 }
 window.printApplicantDetail = printApplicantDetail;
+
+// ============ PDF LETTER DOWNLOAD (Feature #2) ============
+// Called from the applicant detail modal action buttons.
+function downloadLetter(submissionId, type) {
+    const token = sessionStorage.getItem('adminToken');
+    if (!token) { showToast('Session expired. Please log in again.', 'error'); return; }
+    const url = `${API_BASE}/generate-letter.php?submission_id=${encodeURIComponent(submissionId)}&type=${encodeURIComponent(type)}`;
+    // Fetch as blob so the auth header is included.
+    fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => {
+            if (!res.ok) throw new Error('Server returned ' + res.status);
+            return res.blob();
+        })
+        .then(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = type + '_letter_' + submissionId + '.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        })
+        .catch(err => showToast('Failed to download letter: ' + err.message, 'error'));
+}
+window.downloadLetter = downloadLetter;
 
 // --- HR DASHBOARD ---
 async function initHrDashboard() {
@@ -551,16 +611,21 @@ async function approveVacancy(id, token) {
     showToast('Vacancy approved', 'success');
 }
 
-async function loadHrApplicants(token) {
+// Current HR applicants page state (Feature #11 pagination)
+let _hrCurrentPage = 1;
+window.hrApplicantsPage = function(p) { _hrCurrentPage = p; loadHrApplicants(sessionStorage.getItem('adminToken')); };
+
+async function loadHrApplicants(token, page) {
+    if (page) _hrCurrentPage = page;
     try {
-        const res = await fetch(`${API_BASE}/get-submissions.php`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const url = `${API_BASE}/get-submissions.php?page=${_hrCurrentPage}&per_page=20`;
+        const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
         const subs = data.submissions || [];
 
         const statTotal = document.getElementById('statTotalApplicants');
         const statPlaced = document.getElementById('statPlaced');
-        const statOpen = document.getElementById('statOpenPositions');
-        if (statTotal) statTotal.textContent = subs.length;
+        if (statTotal) statTotal.textContent = data.pagination ? data.pagination.total : subs.length;
         if (statPlaced) statPlaced.textContent = subs.filter(s => ['deployed', 'ongoing'].includes(s.status)).length;
 
         const list = document.getElementById('applicantsList') || document.getElementById('allApplicantsList');
@@ -568,6 +633,7 @@ async function loadHrApplicants(token) {
 
         if (subs.length === 0) {
             list.innerHTML = '<div class="text-center text-muted py-3">No applications received yet.</div>';
+            renderPagination('hrPaginationContainer', null, 'hrApplicantsPage');
             return;
         }
 
@@ -594,6 +660,11 @@ async function loadHrApplicants(token) {
         });
         html += '</tbody></table>';
         list.innerHTML = html;
+
+        // Render pagination controls
+        if (typeof renderPagination === 'function') {
+            renderPagination('hrPaginationContainer', data.pagination || null, 'hrApplicantsPage');
+        }
     } catch (e) {
         console.error('Error loading HR applicants:', e);
     }
@@ -739,6 +810,16 @@ async function initStudentDashboard() {
                 });
                 hHtml += '</ul>';
                 hList.innerHTML = hHtml;
+
+                // Feature #4 — load evaluation for the latest submission
+                if (typeof loadStudentEvaluation === 'function') {
+                    loadStudentEvaluation(latest.id);
+                }
+
+                // Feature #3 — load interview section
+                if (typeof loadStudentInterview === 'function') {
+                    loadStudentInterview();
+                }
             } else {
                 hList.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-folder-open fa-2x mb-2 d-block opacity-25"></i>No applications yet.</div>';
             }

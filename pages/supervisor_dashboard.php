@@ -109,6 +109,11 @@
                             <i class="fas fa-users me-2"></i>Applicants
                         </button>
                     </li>
+                    <li class="nav-item">
+                        <button class="nav-link" id="interviews-tab" data-bs-toggle="tab" data-bs-target="#interviews-pane" type="button" onclick="if(typeof loadSupervisorInterviews==='function') loadSupervisorInterviews()">
+                            <i class="fas fa-calendar-check me-2"></i>Interviews
+                        </button>
+                    </li>
                 </ul>
             </div>
             <div class="card-body">
@@ -146,15 +151,32 @@
                                     <option value="all">All Statuses</option>
                                     <option value="applied">Applied</option>
                                     <option value="pending">Pending</option>
+                                    <option value="interview">Interview</option>
                                     <option value="accepted">Accepted</option>
                                     <option value="deployed">Deployed</option>
                                     <option value="ongoing">Ongoing</option>
+                                    <option value="completed">Completed</option>
                                     <option value="rejected">Rejected</option>
                                 </select>
                             </div>
                         </div>
                         <div id="applicantsList" class="table-responsive">
                             <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card mb-2"></div>
+                            <div class="skeleton skeleton-card"></div>
+                        </div>
+                        <div id="supervisorPaginationContainer" class="mt-3"></div>
+                    </div>
+
+                    <!-- Interviews Pane (#3) -->
+                    <div class="tab-pane fade" id="interviews-pane">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h4 class="mb-0"><i class="fas fa-calendar-check me-2 text-primary"></i>Interview Schedule</h4>
+                            <button class="btn btn-sm btn-outline-primary" onclick="if(typeof loadSupervisorInterviews==='function') loadSupervisorInterviews()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div id="interviewsCalendar">
                             <div class="skeleton skeleton-card mb-2"></div>
                             <div class="skeleton skeleton-card"></div>
                         </div>
@@ -260,6 +282,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/interviews.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/evaluations.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/supervisor_dashboard.js?v=<?php echo time(); ?>"></script>
     <script>
         // Init logic for Supervisor Dashboard

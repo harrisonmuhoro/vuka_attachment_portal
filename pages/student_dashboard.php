@@ -135,6 +135,8 @@
                                         <p class="small" style="color: var(--c-slate);">Browse the vacancies tab to apply for an attachment opportunity.</p>
                                     </div>
                                 </div>
+                                <div id="studentInterviewSection" class="mt-4"></div>
+                                <div id="studentEvaluationSection" class="mt-4"></div>
                             </div>
                         </div>
                     </div>
@@ -210,6 +212,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/interviews.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/evaluations.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/student_dashboard.js?v=<?php echo time(); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

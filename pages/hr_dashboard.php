@@ -139,6 +139,7 @@
                             <div class="skeleton skeleton-card mb-2"></div>
                             <div class="skeleton skeleton-card"></div>
                         </div>
+                        <div id="hrPaginationContainer" class="mt-3"></div>
                     </div>
 
                     <!-- Placements -->
@@ -174,6 +175,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/interviews.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/evaluations.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/hr_dashboard.js?v=<?php echo time(); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

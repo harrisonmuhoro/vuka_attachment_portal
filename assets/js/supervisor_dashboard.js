@@ -64,6 +64,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.initSupervisorDashboard = async function() {
             await origInit();
             loadSupervisorAnalytics();
+            if (typeof loadSupervisorInterviews === 'function') {
+                loadSupervisorInterviews();
+            }
         };
     }
 });
