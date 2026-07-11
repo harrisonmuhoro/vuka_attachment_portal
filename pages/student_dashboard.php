@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>(function(){try{var t=localStorage.getItem('vuka_theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+    <script>(function(){try{var m=document.cookie.match(/(?:^|;)\s*vuka_theme=([^;]*)/);var t=m?m[1]:'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>Vuka — Student Portal</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -101,6 +101,11 @@
                                     <i class="fas fa-history me-2"></i>My Applications
                                 </button>
                             </li>
+                            <li class="nav-item ms-auto">
+                                <button class="nav-link" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profileView" type="button" onclick="if(typeof loadProfile==='function') loadProfile()">
+                                    <i class="fas fa-user-cog me-2"></i>My Profile
+                                </button>
+                            </li>
                         </ul>
                     </div>
                     <div class="card-body">
@@ -138,6 +143,9 @@
                                 <div id="studentInterviewSection" class="mt-4"></div>
                                 <div id="studentEvaluationSection" class="mt-4"></div>
                             </div>
+
+                            <!-- Profile View -->
+                            <?php include 'components/profile_view.php'; ?>
                         </div>
                     </div>
                 </div>
@@ -214,6 +222,7 @@
     <script src="../assets/js/common.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/interviews.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/evaluations.js?v=<?php echo time(); ?>"></script>
+    <script src="../assets/js/profile.js?v=<?php echo time(); ?>"></script>
     <script src="../assets/js/student_dashboard.js?v=<?php echo time(); ?>"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {

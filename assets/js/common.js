@@ -10,20 +10,22 @@ const API_BASE = (window.location.pathname.includes('/pages/') || window.locatio
 
 
 // ============ DARK MODE (Feature #8) ============
-// Apply saved theme ASAP. (A pre-paint inline script in each page <head> avoids
-// the flash; this is the fallback + the source of the toggle function.)
+// Apply saved theme ASAP.
 (function applySavedTheme() {
     try {
-        const saved = localStorage.getItem('vuka_theme') || 'light';
+        const match = document.cookie.match(/(?:^|;)\s*vuka_theme=([^;]*)/);
+        const saved = match ? match[1] : 'light';
         document.documentElement.setAttribute('data-theme', saved);
-    } catch (e) { /* localStorage unavailable */ }
+    } catch (e) { /* cookies unavailable */ }
 })();
 
 function toggleDarkMode() {
     const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
-    try { localStorage.setItem('vuka_theme', next); } catch (e) {}
+    try { 
+        document.cookie = `vuka_theme=${next}; path=/; max-age=31536000`; 
+    } catch (e) {}
     document.querySelectorAll('.theme-toggle-icon').forEach(icon => {
         icon.className = 'theme-toggle-icon fas ' + (next === 'dark' ? 'fa-sun' : 'fa-moon');
     });
@@ -510,7 +512,7 @@ async function viewApplicantDetails(submissionId) {
         }
 
         // ---- Tier 5 action buttons: PDF letters (#2) / interview (#3) / evaluation (#4) ----
-        const _role = getAdminRole();
+        const _role = sessionStorage.getItem('adminRole') || '';
         const _nameArg = (s.full_name || '').replace(/'/g, "\\'");
         const _letter = { accepted: ['offer', 'Offer Letter'], rejected: ['rejection', 'Rejection Letter'], deployed: ['deployment', 'Deployment Certificate'] }[s.status];
         let _actions = '';

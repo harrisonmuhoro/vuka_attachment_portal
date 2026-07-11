@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script>(function(){try{var t=localStorage.getItem('vuka_theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
+    <script>(function(){try{var m=document.cookie.match(/(?:^|;)\s*vuka_theme=([^;]*)/);var t=m?m[1]:'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();</script>
     <title>Vuka — Attachment Portal</title>
     <meta name="description" content="Official Student Attachment Platform for the Vuka.">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">

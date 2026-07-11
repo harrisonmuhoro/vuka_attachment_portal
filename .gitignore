@@ -10,6 +10,11 @@ backup_nyeri_20260709_071418.sql
 
 # === USER UPLOADED DOCUMENTS ===
 uploads/
+uploads/profile_photos/
+uploads/application_letter/
+uploads/national_id_copy/
+uploads/insurance_cert/
+uploads/campus_letter/
 
 # === LOGS ===
 debug.log
