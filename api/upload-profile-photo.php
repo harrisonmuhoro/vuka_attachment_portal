@@ -1,7 +1,7 @@
 <?php
 require_once '../session-manager.php';
 
-$session = getSession();
+$session = requireAuth();
 
 $isStudent = isset($session['user_id']);
 $userId    = $isStudent ? $session['user_id'] : $session['admin_id'];
@@ -48,34 +48,22 @@ if (!in_array($ext, $allowedExt, true)) {
     exit;
 }
 
-// Sanitize filename — never use the original
-$filename  = bin2hex(random_bytes(16)) . '.' . $ext;
-$uploadDir = __DIR__ . '/../uploads/profile_photos/';
-$destPath  = $uploadDir . $filename;
-
-if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
-}
-
-if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+// Read the file contents
+$fileContent = file_get_contents($file['tmp_name']);
+if ($fileContent === false) {
     http_response_code(500);
-    echo json_encode(['error' => 'Failed to save photo. Please try again.']);
+    echo json_encode(['error' => 'Failed to read photo. Please try again.']);
     exit;
 }
 
-// Delete the old photo if one exists
-$oldStmt = $pdo->prepare("SELECT profile_photo FROM {$table} WHERE id = ?");
-$oldStmt->execute([$userId]);
-$oldPhoto = $oldStmt->fetchColumn();
-if ($oldPhoto && file_exists($uploadDir . $oldPhoto)) {
-    unlink($uploadDir . $oldPhoto);
-}
+$filename  = bin2hex(random_bytes(16)) . '.' . $ext;
 
-// Save new filename to DB
-$pdo->prepare("UPDATE {$table} SET profile_photo = ? WHERE id = ?")
-    ->execute([$filename, $userId]);
+// Save blob to DB
+$stmt = $pdo->prepare("UPDATE {$table} SET profile_photo = ?, profile_photo_blob = ? WHERE id = ?");
+$stmt->execute([$filename, $fileContent, $userId]);
 
+$userType = $isStudent ? 'user' : 'admin';
 echo json_encode([
     'success'   => true,
-    'photo_url' => '/attachment/uploads/profile_photos/' . $filename,
+    'photo_url' => '/attachment/api/serve-profile-photo.php?type=' . $userType . '&id=' . $userId,
 ]);

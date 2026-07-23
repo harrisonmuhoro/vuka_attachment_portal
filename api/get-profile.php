@@ -1,7 +1,7 @@
 <?php
 require_once '../session-manager.php';
 
-$session = getSession();
+$session = requireAuth();
 
 if (isset($session['user_id'])) {
     // Student

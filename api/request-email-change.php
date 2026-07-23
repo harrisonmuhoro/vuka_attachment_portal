@@ -2,7 +2,7 @@
 require_once '../session-manager.php';
 require_once '../lib/mailer.php';
 
-$session = getSession();
+$session = requireAuth();
 
 // Works for both students and admins
 $isStudent = isset($session['user_id']);

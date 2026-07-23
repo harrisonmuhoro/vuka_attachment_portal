@@ -334,19 +334,66 @@ async function loadSupervisorVacancies(dept, token) {
         const list = document.getElementById('vacanciesList');
         document.getElementById('statVacancies').textContent = data.vacancies ? data.vacancies.length : 0;
 
-        let html = '<table class="table table-hover"><thead><tr><th>Title</th><th>Positions</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+        let html = '<table class="table table-hover"><thead><tr><th>Title</th><th>Positions</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead><tbody>';
         (data.vacancies || []).forEach(v => {
             const badge = v.status === 'approved' ? 'bg-success' : (v.status === 'pending' ? 'bg-warning' : 'bg-secondary');
+            let actions = '';
+            if (v.status !== 'closed' && v.status !== 'rejected') {
+                actions += `<button class="btn btn-sm btn-outline-warning me-1" onclick="endSupervisorVacancy(${v.id}, '${v.title.replace(/'/g, "\\'")}')" title="Mark Over"><i class="fas fa-power-off"></i></button>`;
+            }
+            actions += `<button class="btn btn-sm btn-outline-danger" onclick="deleteSupervisorVacancy(${v.id}, '${v.title.replace(/'/g, "\\'")}')" title="Delete Vacancy"><i class="fas fa-trash"></i></button>`;
+            
             html += `<tr>
                 <td>${v.title}</td>
                 <td>${v.positions_count}</td>
                 <td><span class="badge ${badge}">${v.status}</span></td>
                 <td>${new Date(v.created_at).toLocaleDateString()}</td>
+                <td>${actions}</td>
             </tr>`;
         });
         html += '</tbody></table>';
         list.innerHTML = html;
     } catch (e) { console.error(e); }
+}
+
+async function endSupervisorVacancy(id, title) {
+    if (!confirm(`Are you sure you want to mark the vacancy "${title}" as over?`)) return;
+    const token = sessionStorage.getItem('adminToken');
+    const dept = sessionStorage.getItem('adminDept');
+    try {
+        const res = await fetch(`${API_BASE}/vacancies.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ action: 'end', vacancy_id: id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadSupervisorVacancies(dept, token);
+        } else {
+            showToast(data.error || 'Failed to end vacancy', 'danger');
+        }
+    } catch (e) { console.error(e); showToast('Network error', 'danger'); }
+}
+
+async function deleteSupervisorVacancy(id, title) {
+    if (!confirm(`Are you sure you want to completely delete the vacancy "${title}"?`)) return;
+    const token = sessionStorage.getItem('adminToken');
+    const dept = sessionStorage.getItem('adminDept');
+    try {
+        const res = await fetch(`${API_BASE}/vacancies.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ action: 'delete', vacancy_id: id })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            loadSupervisorVacancies(dept, token);
+        } else {
+            showToast(data.error || 'Failed to delete vacancy', 'danger');
+        }
+    } catch (e) { console.error(e); showToast('Network error', 'danger'); }
 }
 
 // Current supervisor applicants page state (Feature #11 pagination)
@@ -397,6 +444,9 @@ async function loadSupervisorApplicants(dept, token) {
             if (s.status === 'deployed') {
                 actions += `<button class="btn btn-sm btn-dark" onclick="supervisorUpdateStatus(${s.id}, 'ongoing', '${token}')"><i class="fas fa-play me-1"></i>Start</button>`;
             }
+            if (s.status === 'ongoing') {
+                actions += `<button class="btn btn-sm btn-success mt-1" onclick="supervisorUpdateStatus(${s.id}, 'completed', '${token}')"><i class="fas fa-check-circle me-1"></i>Complete</button>`;
+            }
             html += `<tr>
                 <td>${selectable ? `<input type="checkbox" class="form-check-input bulk-cb" value="${s.id}" onchange="bulkHandleRow(this)">` : ''}</td>
                 <td>${s.full_name}<br><small class="text-muted">${s.national_id}</small></td>
@@ -417,6 +467,34 @@ async function loadSupervisorApplicants(dept, token) {
     } catch (e) { console.error(e); }
 }
 
+
+// ============ SUPERVISOR STATUS UPDATE ============
+window.supervisorUpdateStatus = async function(id, newStatus, token) {
+    let msg = `Are you sure you want to change this applicant's status to '${newStatus}'?`;
+    if (newStatus === 'completed') {
+        msg = `Are you sure you want to mark this internship/attachment as completed (over)?`;
+    }
+    if (!confirm(msg)) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/update-submission.php`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ submission_id: id, status: newStatus })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success');
+            const dept = sessionStorage.getItem('adminDept');
+            loadSupervisorApplicants(dept, token);
+        } else {
+            showToast(data.error || 'Update failed', 'danger');
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('Network error', 'danger');
+    }
+};
 
 // ============ VIEW APPLICANT DETAILS (shared by Supervisor + HR) ============
 async function viewApplicantDetails(submissionId) {

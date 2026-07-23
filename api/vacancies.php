@@ -9,7 +9,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ob_start();
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -99,6 +99,38 @@ try {
              
              ob_end_clean();
              json_response(true, ['message' => "Vacancy status updated to $newStatus"]);
+        }
+
+        // --- DELETE/END VACANCY (Supervisor/Admin) ---
+        if ($action === 'delete' || $action === 'end') {
+            $vacancyId = $input['vacancy_id'];
+            
+            // Verify ownership/permission
+            $stmt = $pdo->prepare("SELECT department_name FROM vacancies WHERE id = ?");
+            $stmt->execute([$vacancyId]);
+            $vac = $stmt->fetch();
+            
+            if (!$vac) {
+                ob_end_clean();
+                json_response(false, null, 'Vacancy not found');
+            }
+            
+            if ($session['role_name'] === 'department_supervisor' && $vac['department_name'] !== $session['department']) {
+                ob_end_clean();
+                json_response(false, null, 'Unauthorized: Cannot modify other department vacancies');
+            }
+            
+            if ($action === 'delete') {
+                $stmt = $pdo->prepare("DELETE FROM vacancies WHERE id = ?");
+                $stmt->execute([$vacancyId]);
+                ob_end_clean();
+                json_response(true, ['message' => 'Vacancy deleted successfully.']);
+            } else if ($action === 'end') {
+                $stmt = $pdo->prepare("UPDATE vacancies SET status = 'closed' WHERE id = ?");
+                $stmt->execute([$vacancyId]);
+                ob_end_clean();
+                json_response(true, ['message' => 'Vacancy marked as over.']);
+            }
         }
     }
     

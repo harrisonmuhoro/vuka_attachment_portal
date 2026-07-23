@@ -11,7 +11,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ob_start();
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -147,36 +147,27 @@ try {
                 json_response(false, null, "$docLabel has an invalid MIME type");
             }
             
-            // Create upload directory for this document type
-            $uploadSubDir = UPLOAD_DIR . $fieldName . '/';
-            if (!is_dir($uploadSubDir)) {
-                mkdir($uploadSubDir, 0755, true);
-            }
-            
-            // Generate unique filename
-            $uniqueFilename = generate_unique_filename($file['name'], $fieldName);
-            $targetPath = $uploadSubDir . $uniqueFilename;
-            $relativePath = $fieldName . '/' . $uniqueFilename;
-            
-            // Move uploaded file
-            if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
+            // Extract file content
+            $fileContent = file_get_contents($file['tmp_name']);
+            if ($fileContent === false) {
                 $pdo->rollBack();
                 ob_end_clean();
-                json_response(false, null, "Failed to upload $docLabel");
+                json_response(false, null, "Failed to read $docLabel");
             }
             
-            // Insert document record
+            // Insert document record with BLOB
             $stmt = $pdo->prepare("
-                INSERT INTO documents (submission_id, document_type, original_filename, file_path, mime_type, file_size)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO documents (submission_id, document_type, original_filename, file_path, mime_type, file_size, file_content)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
             $stmt->execute([
                 $submissionId,
                 $fieldName,
                 sanitize_filename($file['name']),
-                $relativePath,
+                '', // no relative file_path anymore
                 $mimeType,
-                $file['size']
+                $file['size'],
+                $fileContent
             ]);
             
             $uploadedDocs[] = $fieldName;

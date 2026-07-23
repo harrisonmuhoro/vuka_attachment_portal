@@ -11,7 +11,7 @@
  * PHPMailer into lib/phpmailer/ (PHPMailer.php, SMTP.php, Exception.php).
  */
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 
 /**
  * @return bool true if sent (or logged in fallback mode), false on hard failure.

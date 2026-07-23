@@ -2,7 +2,7 @@
 require_once '../session-manager.php';
 require_once '../audit-logger.php';
 
-$session = getSession();
+$session = requireAuth();
 
 $isStudent   = isset($session['user_id']);
 $userId      = $isStudent ? $session['user_id'] : $session['admin_id'];
@@ -57,11 +57,11 @@ $pdo->prepare("UPDATE {$table} SET password = ?, updated_at = NOW() WHERE id = ?
 
 // Invalidate all other sessions for this user (force re-login on other devices)
 if ($isStudent) {
-    $pdo->prepare("DELETE FROM sessions WHERE user_id = ? AND token != ?")
-        ->execute([$userId, $session['token']]);
+    $pdo->prepare("DELETE FROM sessions WHERE user_id = ? AND session_id != ?")
+        ->execute([$userId, $session['session_id']]);
 } else {
-    $pdo->prepare("DELETE FROM sessions WHERE admin_id = ? AND token != ?")
-        ->execute([$userId, $session['token']]);
+    $pdo->prepare("DELETE FROM sessions WHERE admin_id = ? AND session_id != ?")
+        ->execute([$userId, $session['session_id']]);
 }
 
 logAudit($pdo, 'password_changed', ($isStudent ? 'Student' : 'Admin') . " ID {$userId} changed password");

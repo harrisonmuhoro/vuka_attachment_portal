@@ -4,7 +4,7 @@
  * Each function returns a self-contained HTML string.
  */
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 
 function emailShell(string $innerHtml): string {
     return "

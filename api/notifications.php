@@ -12,7 +12,7 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ob_start();
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 
 $session = requireAuth(); // any authenticated user (student or admin)

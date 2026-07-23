@@ -22,12 +22,13 @@ async function loadProfile() {
 
     // Photo
     if (p.profile_photo) {
+        const token = sessionStorage.getItem('userToken') || sessionStorage.getItem('adminToken');
         const preview = document.getElementById('profilePhotoPreview');
         if(preview) {
-            preview.src = '/attachment/uploads/profile_photos/' + p.profile_photo;
+            preview.src = '/attachment/api/serve-profile-photo.php?token=' + token + '&t=' + Date.now();
         }
         document.querySelectorAll('.nav-avatar').forEach(el => {
-            el.src = '/attachment/uploads/profile_photos/' + p.profile_photo;
+            el.src = '/attachment/api/serve-profile-photo.php?token=' + token + '&t=' + Date.now();
         });
     }
 
@@ -229,10 +230,7 @@ async function uploadProfilePhoto(input) {
     const res = await apiFetch('/attachment/api/upload-profile-photo.php', { method: 'POST', body });
     if (res.success) {
         showToast('Profile photo updated', 'success');
-        // Update any other avatar instances in the navbar
-        document.querySelectorAll('.nav-avatar').forEach(el => {
-            el.src = res.photo_url;
-        });
+        loadProfile();
     } else {
         showToast(res.error || 'Upload failed', 'danger');
         // Revert preview on failure

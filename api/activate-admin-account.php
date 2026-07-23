@@ -1,20 +1,11 @@
 <?php
-/**
- * Activate Admin Account API
- * POST /api/activate-admin-account.php
- * 
- * SUPER ADMIN ONLY
- * Activates pending admin accounts
- * Admin can only login after activation
- * Strict backend role verification
- */
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ob_start();
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
 

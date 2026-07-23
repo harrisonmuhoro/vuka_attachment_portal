@@ -11,7 +11,7 @@
  * - CSRF token generation and validation
  */
 
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/config/config.php';
 
 // Native PHP session is only a fallback transport now (Bearer token is primary).
 // Start it defensively so including this file after output doesn't emit warnings.

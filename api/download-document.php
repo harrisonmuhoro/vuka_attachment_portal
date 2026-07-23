@@ -1,17 +1,10 @@
 <?php
-/**
- * Download / View Document Endpoint
- * GET /api/download-document.php?id=XXX
- * GET /api/download-document.php?submissionId=XXX&documentType=XXX
- * 
- * Supports both lookup methods: by document ID, or by submission + type
- */
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -30,7 +23,7 @@ try {
     // Lookup by document ID
     if ($documentId > 0) {
         $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name, s.department_applied
+            SELECT d.original_filename, d.file_content, d.mime_type, s.full_name, s.department_applied
             FROM documents d
             JOIN submissions s ON d.submission_id = s.id
             WHERE d.id = ?
@@ -42,7 +35,7 @@ try {
     // Fallback: lookup by submission ID + document type
     elseif ($submissionId > 0 && !empty($documentType)) {
         $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_path, d.mime_type, s.full_name, s.department_applied
+            SELECT d.original_filename, d.file_content, d.mime_type, s.full_name, s.department_applied
             FROM documents d
             JOIN submissions s ON d.submission_id = s.id
             WHERE d.submission_id = ? AND d.document_type = ?
@@ -64,20 +57,18 @@ try {
         json_response(false, null, 'Forbidden: document is outside your department');
     }
 
-    $filepath = UPLOAD_DIR . $document['file_path'];
-    
-    if (!file_exists($filepath)) {
-        json_response(false, null, 'File not found on server');
+    if (empty($document['file_content'])) {
+        json_response(false, null, 'File content not found in database');
     }
     
     // Stream file (do NOT send JSON headers - this is a binary response)
     header('Content-Type: ' . $document['mime_type']);
     header('Content-Disposition: inline; filename="' . $document['original_filename'] . '"');
-    header('Content-Length: ' . filesize($filepath));
+    header('Content-Length: ' . strlen($document['file_content']));
     header('Cache-Control: private, max-age=3600');
     header('Pragma: public');
     
-    readfile($filepath);
+    echo $document['file_content'];
     exit;
     
 } catch (Exception $e) {

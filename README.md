@@ -46,9 +46,9 @@ The system defines a **4-role hierarchy**. A user's role is stored in the databa
 - **Vacancy browsing** — view all HR-approved attachment and internship openings.
 - **Live search & filter** — instantly filter vacancies by department or job title as you type.
 - **Application submission** — apply to a vacancy with course, institution, duration, and insurance details.
-- **Document upload** — attach the required supporting documents (Application Letter, National ID copy, Insurance Certificate, Campus/Introduction Letter) as PDF/JPG/PNG, up to **2 MB each**, validated by MIME type, extension, and size.
+- **Document upload** — attach the required supporting documents (Application Letter, National ID copy, Insurance Certificate, Campus/Introduction Letter) as PDF/JPG/PNG, up to **2 MB each**. *Note: Documents are securely stored directly in the MySQL database.*
 - **Real-time status tracking** — a visual **status timeline** (Applied → Under Review → Decision → Deployed) shows exactly where the application stands.
-- **Profile sidebar** — displays the student's name and national ID.
+- **Profile management** — displays the student's name, ID, and supports uploading a profile photo.
 
 ### Department Supervisor Portal
 - **Vacancy requests** — create new attachment/internship vacancy requests for their department (title, description, skills required, number of positions, type). Requests start as `pending` and await HR approval.
@@ -62,7 +62,7 @@ The system defines a **4-role hierarchy**. A user's role is stored in the databa
 ### HR Coordinator Portal
 - **Vacancy approval workflow** — review supervisor-submitted vacancy requests and **approve, reject, or close** them (only HR and Super Admin can change vacancy status).
 - **Cross-department applicant review** — review and update the status of applicants across all departments.
-- **Document verification** — preview and download applicant documents for verification.
+- **Document verification** — preview and download applicant documents securely from the database for verification.
 - **Placement tracking** — monitor selected and placed candidates.
 - **Bar-chart analytics** — applicants per department.
 - **CSV export** — download the applicant list.
@@ -115,11 +115,10 @@ A parallel `placement_status` (`pending → shortlisted → selected → placed`
 - **Server-side RBAC guards** — `requireSuperAdmin()`, `requireHR()`, `requireSupervisor()`, `requireStudent()`, `requireAnyAdmin()` enforce access per endpoint.
 - **Department scoping** — supervisors are automatically confined to their own department's data.
 - **Audit logging** — administrative actions and auth events are written to an audit log.
-- **Strict file-upload validation** — MIME type, extension, and 2 MB size limits; randomized, sanitized filenames.
+- **Database File Storage** — to enhance security and simplify server configuration, all user uploads (documents and profile photos) are stored securely as BLOBs within the MySQL database.
 - **Security headers** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and a scoped CORS policy.
 - **Disabled public admin registration** — `admin-register.php` is hard-blocked (HTTP 403); admins can only be created by a Super Admin.
 - **Authenticated, department-scoped document access** — `download-document.php` requires an admin-tier session and only serves documents belonging to the requester's department (super_admin/HR see all).
-- **Guarded department lookups** — `get-departments.php` requires an admin-tier session.
 
 > **Hardening note:** `submit-application.php` intentionally keeps a public/form-based code path so unauthenticated applicants can submit. Change the default Super Admin credentials immediately after first login, and serve the app over HTTPS in production (session cookies are flagged `Secure`).
 
@@ -146,14 +145,18 @@ A parallel `placement_status` (`pending → shortlisted → selected → placed`
 ```
 /
 ├── index.php                     # Entry point — login & registration (all roles)
-├── config.php                    # DB connection, upload rules, security helpers
 ├── session-manager.php           # Session creation/validation, RBAC guards, dept scoping
 ├── audit-logger.php              # Administrative audit logging
-├── database.sql                  # Source-of-truth schema + seed data
-├── database-migration.sql        # Incremental schema migrations (RBAC updates)
 ├── .htaccess                     # Apache Authorization header pass-through
 │
+├── config/                       # Secure configuration directory (protected by .htaccess)
+│   ├── config.php                # DB connection & global constants
+│   └── database.sql              # Consolidated source-of-truth schema + seed data
+│
 ├── api/                          # REST-like PHP endpoints (see API Reference)
+│   ├── serve-profile-photo.php   # Streams photo BLOBs from the DB
+│   ├── download-document.php     # Streams document BLOBs from the DB
+│   └── ...
 │
 ├── pages/                        # Role-specific dashboards
 │   ├── admin_dashboard.php       # Super Admin
@@ -165,12 +168,6 @@ A parallel `placement_status` (`pending → shortlisted → selected → placed`
 │   ├── js/                       # common.js (shared) + one module per dashboard
 │   └── css/                      # common.css + per-page stylesheets
 │
-├── uploads/                      # Secure storage for uploaded documents
-│   ├── application_letter/
-│   ├── national_id_copy/
-│   ├── insurance_cert/
-│   └── campus_letter/
-│
 └── logo/                         # Branding assets
 ```
 
@@ -178,17 +175,17 @@ A parallel `placement_status` (`pending → shortlisted → selected → placed`
 
 ## Database Schema
 
-Key tables (see `database.sql` for the full definition):
+Key tables (see `config/database.sql` for the full definition):
 
 | Table | Purpose |
 |---|---|
 | `roles` | RBAC role definitions (super_admin, hr_coordinator, department_supervisor, student) |
 | `departments` | Organizational departments with per-department admin limits |
-| `users` | Student/applicant accounts (with email verification fields) |
-| `admin_users` | Admin accounts (PF number, role, department) |
+| `users` | Student/applicant accounts (with `LONGBLOB` for profile photos) |
+| `admin_users` | Admin accounts (with `LONGBLOB` for profile photos) |
 | `vacancies` | Attachment/internship openings (created by supervisors, approved by HR) |
 | `submissions` | Applications with full status & placement lifecycle |
-| `documents` | Uploaded supporting files linked to submissions |
+| `documents` | Uploaded supporting files linked to submissions (contains `file_content LONGBLOB`) |
 | `sessions` | Server-side Bearer-token session store |
 | `review_history` | Audit trail of every submission status change |
 | `audit_log` | Administrative action log |
@@ -216,7 +213,7 @@ All endpoints live under `/api/`. Authenticated requests send `Authorization: Be
 | Endpoint | Method | Purpose | Auth |
 |---|:---:|---|---|
 | `register.php` | POST | Student self-registration | Public |
-| `submit-application.php` | POST | Submit application + document uploads | Form flow |
+| `submit-application.php` | POST | Submit application + document uploads (stores as BLOBs) | Form flow |
 | `get-user-info.php` | GET | Authenticated user's own profile | Authenticated |
 | `get-user-submissions.php` | GET | The student's own submissions | Student |
 
@@ -232,7 +229,7 @@ All endpoints live under `/api/`. Authenticated requests send `Authorization: Be
 | `get-submissions.php` | GET | List/one submission (dept-scoped for admins) | Admin (scoped) |
 | `update-submission.php` | POST | Change status / add review notes | Admin tier |
 | `delete-submission.php` | POST | Delete a submission (dept-scoped) | Admin tier |
-| `download-document.php` | GET | Stream/view an uploaded document (dept-scoped) | Admin tier |
+| `download-document.php` | GET | Stream an uploaded document from the database (dept-scoped) | Admin tier |
 
 ### Admin / RBAC Management (Super Admin)
 | Endpoint | Method | Purpose |
@@ -259,27 +256,26 @@ All endpoints live under `/api/`. Authenticated requests send `Authorization: Be
 ### Requirements
 - **Server:** Apache (WAMP, XAMPP, or Laragon for local development)
 - **PHP:** 7.4 or higher (PDO MySQL extension enabled)
-- **Database:** MySQL 5.7+ / MariaDB
+- **Database:** MySQL 5.7+ / MariaDB (Recommend setting `max_allowed_packet=64M` to support large file uploads)
 - **Browser:** Any modern browser (Chrome, Firefox, Safari, Edge)
 
 ### 1. Database
 1. Create a database named `vuka_attachment_portal`.
-2. Import **`database.sql`** — this builds the full schema and seeds roles, departments, and the default Super Admin.
-3. If upgrading an existing install, also import **`database-migration.sql`**.
+2. Import **`config/database.sql`** — this is the consolidated master schema that builds the tables (including the `LONGBLOB` columns for files) and seeds roles, departments, and the default Super Admin.
 
 ### 2. Configuration
-Edit `config.php` and set your database credentials if they differ from the defaults:
+Edit `config/config.php` and set your database credentials if they differ from the defaults:
 ```php
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_PASS', 'root');
 define('DB_NAME', 'vuka_attachment_portal');
 define('DB_PORT', 3306);
 ```
 
 ### 3. Environment
-1. Ensure the `uploads/` directory exists and is writable by the web server.
-2. Keep the included `.htaccess` in place so Apache passes the `Authorization` header to the API.
+1. The system utilizes `config/.htaccess` to protect your configuration files.
+2. Keep the root `.htaccess` in place so Apache passes the `Authorization` header to the API.
 
 ### 4. Run
 - Open `http://localhost/attachment/index.php`.

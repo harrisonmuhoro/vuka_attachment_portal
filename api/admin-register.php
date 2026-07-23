@@ -18,7 +18,7 @@
  * This is the ONLY secure method for admin account creation.
  */
 
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../config/config.php';
 
 // POST requests to this endpoint are rejected
 http_response_code(403);
