@@ -1,12 +1,17 @@
-# === CREDENTIALS & CONFIG ===
+# ============================================================
+# VUKA (InduTrack KE) — .gitignore
+# ============================================================
+
+# === CREDENTIALS & SENSITIVE CONFIG ===
 config.php
+config/
 .env
+.env.*
 
 # === DATABASE FILES ===
 *.sql
-database.sql
-database-migration.sql
-backup_nyeri_20260709_071418.sql
+*.sqlite
+*.sqlite3
 
 # === USER UPLOADED DOCUMENTS ===
 uploads/
@@ -17,17 +22,30 @@ uploads/insurance_cert/
 uploads/campus_letter/
 
 # === LOGS ===
-debug.log
 *.log
+debug.log
+logs/
 
 # === BACKUP FILES ===
+*_backup.js
+*_backup.css
+*_backup.php
 app_backup.js
 app_backup_2.js
 styles_backup.css
 
 # === TEST FILES ===
-test-rbac.php
-test-session.php
+test-*.php
+test-*.js
+
+# === INTERNAL PLANNING & SESSION DOCS ===
+updates.md
+main_updates.md
+VUKA_FEATURE_ROADMAP.md
+VUKA_PROFILE_EDITING.md
+
+# === DOCS FOLDER ===
+www/
 
 # === CLAUDE CODE SETTINGS ===
 .claude/
@@ -36,3 +54,19 @@ test-session.php
 .DS_Store
 Thumbs.db
 desktop.ini
+.Spotlight-V100
+.Trashes
+
+# === EDITOR & IDE FILES ===
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# === PHP CACHE & COMPILED ===
+*.cache
+*.compiled.php
+/vendor/
+composer.lock
