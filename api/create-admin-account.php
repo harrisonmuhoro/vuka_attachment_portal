@@ -14,7 +14,6 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
-require_once __DIR__ . '/../lib/password-policy.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -42,24 +41,23 @@ try {
     // Validate
     if (empty($fullName) || empty($pfNumber) || empty($nationalId) || empty($email) || empty($password) || empty($department)) {
         ob_end_clean();
-        json_response(false, null, 'All fields are required', 422);
+        json_response(false, null, 'All fields are required');
     }
     
-    $passwordError = PasswordPolicy::validationError((string)$password);
-    if ($passwordError !== null) {
+    if (strlen($password) < 6) {
         ob_end_clean();
-        json_response(false, null, $passwordError, 422);
+        json_response(false, null, 'Password must be at least 6 characters');
     }
 
     // Validate National ID
     if (!preg_match('/^\d{6,9}$/', $nationalId)) {
         ob_end_clean();
-        json_response(false, null, 'National ID must be 6 to 9 digits', 422);
+        json_response(false, null, 'National ID must be 6 to 9 digits');
     }
     
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         ob_end_clean();
-        json_response(false, null, 'Invalid email address', 422);
+        json_response(false, null, 'Invalid email address');
     }
     
     // Check max 2 per department
@@ -69,23 +67,23 @@ try {
     
     if ($count >= 2) {
         ob_end_clean();
-        json_response(false, null, 'Department has reached the maximum of 2 administrator accounts', 409);
+        json_response(false, null, "Department '$department' already has the maximum of 2 admin accounts");
     }
     
     // Check PF number uniqueness
-    $stmt = $pdo->prepare("SELECT id FROM admin_users WHERE pf_number = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM admin_users WHERE pf_number = ?");
     $stmt->execute([$pfNumber]);
-    if ($stmt->fetchColumn() !== false) {
+    if ($stmt->rowCount() > 0) {
         ob_end_clean();
-        json_response(false, null, 'PF Number already exists', 409);
+        json_response(false, null, 'PF Number already exists');
     }
     
     // Check email uniqueness
-    $stmt = $pdo->prepare("SELECT id FROM admin_users WHERE email = ? LIMIT 1");
+    $stmt = $pdo->prepare("SELECT id FROM admin_users WHERE email = ?");
     $stmt->execute([$email]);
-    if ($stmt->fetchColumn() !== false) {
+    if ($stmt->rowCount() > 0) {
         ob_end_clean();
-        json_response(false, null, 'Email already in use', 409);
+        json_response(false, null, 'Email already in use');
     }
     
     $roleId = isset($data['role_id']) ? (int)$data['role_id'] : 3; // Default to Supervisor (3)
@@ -103,14 +101,10 @@ try {
     $stmt->execute([$department]);
     $deptInfo = $stmt->fetch();
     $departmentId = $deptInfo ? $deptInfo['id'] : null;
-    if ($departmentId === null) {
-        ob_end_clean();
-        json_response(false, null, 'Unknown department', 422);
-    }
 
     // Create account
-    $hashedPassword = PasswordPolicy::hash((string)$password);
-    $pdo->beginTransaction();
+    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+    
     $stmt = $pdo->prepare("
         INSERT INTO admin_users (national_id, pf_number, full_name, email, password_hash, department, department_id, role_id, status, created_by, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())
@@ -125,18 +119,16 @@ try {
         VALUES (?, ?, ?, ?, 'active')
     ");
     $stmt->execute([$newId, $session['admin_id'], $roleId, $departmentId]);
-    $pdo->commit();
     
     ob_end_clean();
     json_response(true, [
         'message' => "Admin account created for $fullName in $department department",
         'admin_id' => $newId
-    ], null, 201);
+    ]);
     
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('Administrator creation failed.');
+    error_log("Create admin error: " . $e->getMessage());
     ob_end_clean();
-    json_response(false, null, 'Failed to create administrator account', 500);
+    json_response(false, null, 'Failed to create admin account: ' . $e->getMessage());
 }
 ?>

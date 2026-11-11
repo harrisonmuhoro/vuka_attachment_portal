@@ -13,7 +13,6 @@ ini_set('log_errors', 1);
 ob_start();
 
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../lib/password-policy.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -33,9 +32,9 @@ try {
         ob_end_clean();
         json_response(false, null, 'Missing reset token', 400);
     }
-    if (PasswordPolicy::validationError((string)$password) !== null) {
+    if (strlen($password) < 8) {
         ob_end_clean();
-        json_response(false, null, 'Password must be at least 12 characters and within the configured maximum length.', 422);
+        json_response(false, null, 'Password must be at least 8 characters', 422);
     }
 
     // Validate token: exists, unused, not expired.
@@ -57,7 +56,7 @@ try {
 
     // Update the correct table's password_hash column.
     $table  = $reset['account_type'] === 'admin' ? 'admin_users' : 'users';
-    $hashed = PasswordPolicy::hash((string)$password);
+    $hashed = hash_password($password); // bcrypt cost 10 (config.php helper)
 
     $upd = $pdo->prepare("UPDATE {$table} SET password_hash = ? WHERE email = ?");
     $upd->execute([$hashed, $reset['email']]);

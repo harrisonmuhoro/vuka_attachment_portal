@@ -17,7 +17,6 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
 require_once __DIR__ . '/../lib/rate-limiter.php';
-require_once __DIR__ . '/../lib/password-policy.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -80,7 +79,6 @@ try {
         ob_end_clean();
         json_response(false, null, 'Invalid credentials', 401);
     }
-    PasswordPolicy::rehashIfNeeded($pdo, 'users', (int)$student['id'], (string)$password, (string)$student['password_hash']);
     
     // Get student role ID (student = role_id 4 in the 4-role model; resolved by name to stay correct)
     $stmt = $pdo->prepare("SELECT id FROM roles WHERE role_name = 'student'");

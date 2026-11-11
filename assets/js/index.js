@@ -115,8 +115,8 @@ if (registrationForm) registrationForm.addEventListener('submit', async function
         return;
     }
 
-    if (Array.from(password).length < 12 || new TextEncoder().encode(password).length > 72) {
-        showToast('Password must be at least 12 characters and no more than 72 bytes.', 'warning');
+    if (password.length < 8) {
+        showToast('Password must be at least 8 characters.', 'warning');
         return;
     }
 

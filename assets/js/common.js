@@ -501,16 +501,7 @@ async function loadSupervisorApplicants(dept, token) {
 
 
 // ============ SUPERVISOR STATUS UPDATE ============
-window.openAssignModal = function(id, applicantName) {
-    const assignedRole = prompt(`Role or job description for ${applicantName}:`) || '';
-    if (!assignedRole.trim()) return;
-    const assignedStation = prompt('Workstation or office:') || '';
-    if (!assignedStation.trim()) return;
-    const token = sessionStorage.getItem('adminToken');
-    window.supervisorUpdateStatus(id, 'deployed', token, assignedRole.trim(), assignedStation.trim());
-};
-
-window.supervisorUpdateStatus = async function(id, newStatus, token, assignedRole = '', assignedStation = '') {
+window.supervisorUpdateStatus = async function(id, newStatus, token) {
     let msg = `Are you sure you want to change this applicant's status to '${newStatus}'?`;
     if (newStatus === 'completed') {
         msg = `Are you sure you want to mark this internship/attachment as completed (over)?`;
@@ -521,7 +512,7 @@ window.supervisorUpdateStatus = async function(id, newStatus, token, assignedRol
         const res = await fetch(`${API_BASE}/update-submission.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ submission_id: id, status: newStatus, assigned_role: assignedRole, assigned_station: assignedStation })
+            body: JSON.stringify({ submission_id: id, status: newStatus })
         });
         const data = await res.json();
         if (data.success) {
@@ -793,17 +784,9 @@ async function loadHrApplicants(token, page) {
 
 async function hrUpdateStatus(submissionId, newStatus, token) {
     let reason = '';
-    let assignedRole = '';
-    let assignedStation = '';
     if (newStatus === 'rejected') {
         reason = prompt('Please enter the rejection reason:');
         if (!reason) return;
-    }
-    if (newStatus === 'deployed') {
-        assignedRole = prompt('Role or job description:') || '';
-        if (!assignedRole.trim()) return;
-        assignedStation = prompt('Workstation or office:') || '';
-        if (!assignedStation.trim()) return;
     }
     if (!confirm(`Are you sure you want to change status to "${newStatus}"?`)) return;
 
@@ -811,7 +794,7 @@ async function hrUpdateStatus(submissionId, newStatus, token) {
         const res = await fetch(`${API_BASE}/update-submission.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ submission_id: submissionId, status: newStatus, rejection_reason: reason, assigned_role: assignedRole, assigned_station: assignedStation })
+            body: JSON.stringify({ submission_id: submissionId, status: newStatus, rejection_reason: reason })
         });
         const data = await res.json();
         if (data.success) {
@@ -1653,14 +1636,11 @@ function bulkUpdateBar() {
         bar.id = 'bulkActionBar';
         bar.className = 'd-none position-fixed bottom-0 start-0 end-0 bg-dark text-white p-3 d-flex align-items-center justify-content-between';
         bar.style.zIndex = '1055';
-        const canChangeDecision = ['hr_coordinator', 'super_admin'].includes(sessionStorage.getItem('adminRole'));
-        const decisionButtons = canChangeDecision ? `
-                <button class="btn btn-success btn-sm" onclick="bulkAction('accepted')"><i class="fas fa-check me-1"></i>Accept</button>
-                <button class="btn btn-danger btn-sm" onclick="bulkAction('rejected')"><i class="fas fa-times me-1"></i>Reject</button>` : '';
         bar.innerHTML = `
             <span id="bulkCount" class="fw-semibold"></span>
             <div class="d-flex gap-2">
-                ${decisionButtons}
+                <button class="btn btn-success btn-sm" onclick="bulkAction('accepted')"><i class="fas fa-check me-1"></i>Accept</button>
+                <button class="btn btn-danger btn-sm" onclick="bulkAction('rejected')"><i class="fas fa-times me-1"></i>Reject</button>
                 <button class="btn btn-outline-light btn-sm" onclick="bulkExportSelected()"><i class="fas fa-download me-1"></i>Export CSV</button>
                 <button class="btn btn-secondary btn-sm" onclick="bulkClearSelection()">Cancel</button>
             </div>`;

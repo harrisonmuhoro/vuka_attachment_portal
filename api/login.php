@@ -12,7 +12,6 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/rate-limiter.php';
-require_once __DIR__ . '/../lib/password-policy.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -76,7 +75,6 @@ try {
                     'national_id' => $user['national_id']
                 ], 'Account not verified. Please verify your email first.', 401);
             }
-            PasswordPolicy::rehashIfNeeded($pdo, 'users', (int)$user['id'], (string)$password, (string)$user['password_hash']);
 
             // Check submission status
             $stmt = $pdo->prepare("SELECT id FROM submissions WHERE user_id = ? LIMIT 1");
@@ -133,7 +131,6 @@ try {
             ob_end_clean();
             json_response(false, null, 'Invalid credentials', 401);
         }
-        PasswordPolicy::rehashIfNeeded($pdo, 'admin_users', (int)$admin['id'], (string)$password, (string)$admin['password_hash']);
         // Admin Login Success
         $roleId = $admin['role_id']; // 1=Admin, 2=HR, 3=Supervisor
         $sessionResult = $GLOBALS['sessionManager']->createSession($admin['id'], 'admin', $roleId);
