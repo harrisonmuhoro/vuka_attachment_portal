@@ -9,4 +9,4 @@
 
 ## Scope and limitation
 
-GitHub Actions runs `43018105895` and `43019123433` failed workflow validation before creating jobs. The run page identified the invalid job-level `runner.temp` context; the workflow now uses `/tmp/vuka-ci-logs` on the Ubuntu runner. The next push will verify this correction. MySQL transaction row locking and production deployment remain unverified. Xdebug printed a local warning because `d:/wamp64/logs/xdebug.log` is unavailable; local test results were unaffected.
+GitHub Actions run [43019440653](https://github.com/harrisonmuhoro/vuka_attachment_portal/actions/runs/43019440653) passed on commit `a0b4be9`. The two earlier runs failed workflow validation because `runner.temp` was used in job-level environment; the workflow now uses `/tmp/vuka-ci-logs` on the Ubuntu runner. MySQL transaction row locking and production deployment remain unverified. Xdebug printed a local warning because `d:/wamp64/logs/xdebug.log` is unavailable; local test results were unaffected.
