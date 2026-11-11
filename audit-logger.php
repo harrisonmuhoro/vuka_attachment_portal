@@ -260,62 +260,80 @@ class AuditLogger {
     
     public function getAllAuditLogs($filters = [], $limit = 100, $offset = 0) {
         try {
-            $query = "SELECT * FROM audit_logs WHERE 1=1";
-            $params = [];
-            
-            if (!empty($filters['action'])) {
-                $query .= " AND action = ?";
-                $params[] = $filters['action'];
-            }
-            
-            if (!empty($filters['admin_id'])) {
-                $query .= " AND admin_id = ?";
-                $params[] = $filters['admin_id'];
-            }
-            
-            if (!empty($filters['start_date'])) {
-                $query .= " AND created_at >= ?";
-                $params[] = $filters['start_date'] . ' 00:00:00';
-            }
-            
-            if (!empty($filters['end_date'])) {
-                $query .= " AND created_at <= ?";
-                $params[] = $filters['end_date'] . ' 23:59:59';
-            }
-            
-            $query .= " ORDER BY created_at DESC LIMIT ? OFFSET ?";
-            $params[] = $limit;
-            $params[] = $offset;
-            
+            [$where, $params] = $this->auditWhere($filters);
+            // Exclude raw JSON changes, user-agent, IP, and free-form details.
+            $query = "SELECT l.id, l.admin_pf, l.admin_role, l.action, l.entity_type,
+                             l.entity_id, l.target_admin_pf, l.created_at
+                      FROM audit_logs l
+                      LEFT JOIN admin_users actor ON actor.id = l.admin_id
+                      LEFT JOIN admin_users target ON target.id = l.target_admin_id
+                      {$where} ORDER BY l.created_at DESC, l.id DESC LIMIT ? OFFSET ?";
+            $params[] = (int)$limit;
+            $params[] = (int)$offset;
             $stmt = $this->pdo->prepare($query);
             $stmt->execute($params);
-            return $stmt->fetchAll();
-            
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            error_log("Get all audit logs error: " . $e->getMessage());
+            error_log('Get all audit logs failed.');
             return [];
         }
     }
-    
-    public function getAuditStatistics() {
+
+    public function countAuditLogs($filters = []) {
         try {
-            $stmt = $this->pdo->query("
-                SELECT 
-                    action,
-                    COUNT(*) as count,
-                    MAX(created_at) as last_occurrence
-                FROM audit_logs
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-                GROUP BY action
-                ORDER BY count DESC
-            ");
-            
-            return $stmt->fetchAll();
-            
+            [$where, $params] = $this->auditWhere($filters);
+            $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM audit_logs l LEFT JOIN admin_users actor ON actor.id = l.admin_id LEFT JOIN admin_users target ON target.id = l.target_admin_id {$where}");
+            $stmt->execute($params);
+            return (int)$stmt->fetchColumn();
         } catch (Exception $e) {
-            error_log("Get audit statistics error: " . $e->getMessage());
+            error_log('Count audit logs failed.');
+            return 0;
+        }
+    }
+
+    public function getAuditStatistics($filters = []) {
+        try {
+            [$where, $params] = $this->auditWhere($filters);
+            if (empty($filters['start_date']) && empty($filters['end_date'])) {
+                $where .= ' AND l.created_at >= ?';
+                $params[] = date('Y-m-d H:i:s', time() - 30 * 86400);
+            }
+            $stmt = $this->pdo->prepare("SELECT l.action, COUNT(*) AS count, MAX(l.created_at) AS last_occurrence
+                FROM audit_logs l
+                LEFT JOIN admin_users actor ON actor.id = l.admin_id
+                LEFT JOIN admin_users target ON target.id = l.target_admin_id
+                {$where} GROUP BY l.action ORDER BY count DESC");
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            error_log('Get audit statistics failed.');
             return [];
         }
+    }
+
+    /** Build prepared filters, including department restrictions in SQL. */
+    private function auditWhere(array $filters): array
+    {
+        $where = 'WHERE 1=1';
+        $params = [];
+        if (!empty($filters['action'])) {
+            $where .= ' AND l.action = ?';
+            $params[] = $filters['action'];
+        }
+        if (!empty($filters['start_date'])) {
+            $where .= ' AND l.created_at >= ?';
+            $params[] = $filters['start_date'] . ' 00:00:00';
+        }
+        if (!empty($filters['end_date'])) {
+            $where .= ' AND l.created_at < ?';
+            $params[] = date('Y-m-d', strtotime($filters['end_date'] . ' +1 day')) . ' 00:00:00';
+        }
+        if (isset($filters['department_id'])) {
+            $where .= ' AND (actor.department_id = ? OR target.department_id = ?)';
+            $params[] = (int)$filters['department_id'];
+            $params[] = (int)$filters['department_id'];
+        }
+        return [$where, $params];
     }
     
     /**

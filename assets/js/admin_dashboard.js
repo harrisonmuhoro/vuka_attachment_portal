@@ -14,6 +14,10 @@ if (createAdminForm) {
             showToast('Please fill in all fields.', 'warning');
             return;
         }
+        if (Array.from(password).length < 12 || new TextEncoder().encode(password).length > 72) {
+            showToast('Password must be at least 12 characters and no more than 72 bytes.', 'warning');
+            return;
+        }
 
         if (!isValidIdNumber(nationalId)) {
             showToast('National ID must be 6 to 9 digits.', 'warning');

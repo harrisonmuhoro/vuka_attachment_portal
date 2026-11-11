@@ -29,7 +29,7 @@
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-lock"></i></span>
                             <input type="password" class="form-control" id="newPassword"
-                                   placeholder="At least 8 characters" minlength="8" required>
+                                   placeholder="At least 12 characters" minlength="12" maxlength="72" required>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -37,7 +37,7 @@
                         <div class="input-group">
                             <span class="input-group-text"><i class="fas fa-lock"></i></span>
                             <input type="password" class="form-control" id="confirmPassword"
-                                   placeholder="Re-enter your password" minlength="8" required>
+                                   placeholder="Re-enter your password" minlength="12" maxlength="72" required>
                         </div>
                     </div>
                     <div id="resetFeedback" class="small mb-3"></div>
@@ -83,8 +83,8 @@
                 const pw = document.getElementById('newPassword').value;
                 const confirm = document.getElementById('confirmPassword').value;
 
-                if (pw.length < 8) {
-                    feedback.textContent = 'Password must be at least 8 characters.';
+                if (Array.from(pw).length < 12 || new TextEncoder().encode(pw).length > 72) {
+                    feedback.textContent = 'Password must be at least 12 characters and no more than 72 bytes.';
                     feedback.classList.add('text-danger');
                     return;
                 }
