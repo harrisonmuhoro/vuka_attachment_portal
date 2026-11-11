@@ -440,26 +440,6 @@ INSERT INTO `departments` (`name`, `description`, `min_admins`, `max_admins`) VA
 ('Transport', 'Transport, Roads, and Public Works Department', 1, 2)
 ON DUPLICATE KEY UPDATE `description` = VALUES(`description`);
 
--- 3. Insert Default Super Admin Account
--- Credentials: PF Number = SUPER/ADMIN/001, National ID = 12345678, Password = admin123
-INSERT INTO `admin_users` (
-    `id`, `national_id`, `pf_number`, `full_name`, `email`,
-    `password_hash`, `department`, `department_id`, `role_id`,
-    `status`, `created_at`
-) VALUES (
-    1,
-    '12345678',
-    'SUPER/ADMIN/001',
-    'System Super Administrator',
-    'admin@vuka.local',
-    '$2y$10$wLXkfWCLHAE6qZvWC/hxse7liJR.SFFwOWObwZMblxTRD2H3QwXzK',
-    'ALL',
-    NULL,
-    1,
-    'active',
-    NOW()
-)
-ON DUPLICATE KEY UPDATE
-    `full_name` = VALUES(`full_name`),
-    `email` = VALUES(`email`),
-    `status` = VALUES(`status`);
+-- Administrator accounts are provisioned interactively with:
+-- php scripts/provision-admin.php
+-- Never seed a reusable administrator credential in SQL.

@@ -66,11 +66,11 @@ try {
     // Activate the account
     $stmt = $pdo->prepare("
         UPDATE admin_users 
-        SET status = 'active', activated_at = NOW(), activated_by = ?
+        SET status = 'active'
         WHERE id = ?
     ");
     
-    $result = $stmt->execute([$session['admin_id'], $adminId]);
+    $result = $stmt->execute([$adminId]);
     
     if (!$result) {
         throw new Exception('Failed to activate admin account');
@@ -82,11 +82,11 @@ try {
     
     // Update admin creation history
     $stmt = $pdo->prepare("
-        UPDATE admin_creation_history 
-        SET activation_status = 'activated', activated_at = NOW(), activation_by_admin_id = ?
+        UPDATE admin_creation_history
+        SET activation_status = 'activated'
         WHERE created_admin_id = ?
     ");
-    $stmt->execute([$session['admin_id'], $adminId]);
+    $stmt->execute([$adminId]);
     
     ob_end_clean();
     json_response(true, [
@@ -99,7 +99,7 @@ try {
     ]);
     
 } catch (Exception $e) {
-    error_log("Activate admin error: " . $e->getMessage());
+    error_log('Administrator activation failed.');
     ob_end_clean();
     json_response(false, null, 'Failed to activate admin account');
 }
