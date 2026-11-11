@@ -40,9 +40,9 @@ if (!defined('VUKA_CONFIG_LOADED')) {
 
     if (!defined('DB_HOST')) define('DB_HOST', $env('DB_HOST', 'localhost'));
     if (!defined('DB_PORT')) define('DB_PORT', (int) $env('DB_PORT', '3306'));
-    if (!defined('DB_NAME')) define('DB_NAME', $env('DB_NAME', 'vuka_attachment_portal'));
-    if (!defined('DB_USER')) define('DB_USER', $env('DB_USER', 'root'));
-    if (!defined('DB_PASS')) define('DB_PASS', $env('DB_PASS', ''));
+    if (!defined('DB_NAME')) define('DB_NAME', $env('DB_NAME', $env('DB_DATABASE', 'vuka_attachment_portal')));
+    if (!defined('DB_USER')) define('DB_USER', $env('DB_USER', $env('DB_USERNAME', 'root')));
+    if (!defined('DB_PASS')) define('DB_PASS', $env('DB_PASS', $env('DB_PASSWORD', '')));
     if (!defined('APP_URL')) define('APP_URL', rtrim($env('APP_URL', 'http://localhost/vuka_attachment'), '/'));
 
     if (!defined('SMTP_HOST')) define('SMTP_HOST', $env('SMTP_HOST', ''));
