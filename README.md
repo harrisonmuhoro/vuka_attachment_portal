@@ -110,11 +110,11 @@ A parallel `placement_status` (`pending → shortlisted → selected → placed`
 
 ## Security
 
-- **Password hashing** — bcrypt (`PASSWORD_BCRYPT`, cost 10).
+- **Password hashing** — PHP `PASSWORD_DEFAULT`; newly set passwords require at least 12 characters. Existing passwords remain usable and their hashes are upgraded after successful login where needed.
 - **Bearer-token sessions** — tokens stored server-side in a `sessions` table; role and validity re-checked from the database on every request; 8-hour expiry.
 - **Server-side RBAC guards** — `requireSuperAdmin()`, `requireHR()`, `requireSupervisor()`, `requireStudent()`, `requireAnyAdmin()` enforce access per endpoint.
 - **Department scoping** — supervisors are automatically confined to their own department's data.
-- **Audit logging** — administrative actions and auth events are written to an audit log.
+- **Audit logging** — administrative actions and auth events are written to an audit log. Super Admin and HR can view system-wide events; Department Supervisors are restricted to their own department.
 - **Database File Storage** — to enhance security and simplify server configuration, all user uploads (documents and profile photos) are stored securely as BLOBs within the MySQL database.
 - **Security headers** — `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, and a scoped CORS policy.
 - **Disabled public admin registration** — `admin-register.php` is hard-blocked (HTTP 403); admins can only be created by a Super Admin.

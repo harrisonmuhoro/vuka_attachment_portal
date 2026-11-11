@@ -2,7 +2,7 @@
 
 **Branch:** `feature`  
 **Scope:** critical security remediation, authentication enforcement, and applicant workflow protection.  
-**Status:** implemented locally; not merged and not yet deployed.
+**Status:** merged to `main` in commit `c76c08c843f19a948c681469d3dd344539ff5de7`; not yet deployed. This report preserves the status at Phase 1 delivery.
 
 ## Summary
 
