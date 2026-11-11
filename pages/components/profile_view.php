@@ -3,7 +3,7 @@
   <div class="d-flex align-items-center gap-3 mb-4">
     <div class="position-relative">
       <img id="profilePhotoPreview"
-           src="../assets/img/default-avatar.png"
+           src="../assets/img/default-avatar.svg"
            alt="Profile photo"
            class="rounded-circle nav-avatar"
            style="width:80px;height:80px;object-fit:cover;">

@@ -3,13 +3,14 @@
 # ============================================================
 
 # === CREDENTIALS & SENSITIVE CONFIG ===
-config.php
-config/
+# Runtime secrets live in the root .env file; config/config.php contains only
+# the environment loader and application bootstrap, so it is safe to track.
 .env
 .env.*
 
 # === DATABASE FILES ===
 *.sql
+!config/database.sql
 *.sqlite
 *.sqlite3
 
