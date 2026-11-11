@@ -9,4 +9,4 @@
 
 ## Scope and limitation
 
-GitHub Actions run `43018105895` was reported as failed for commit `313750767f212eb85ed9b6641fec22a8eac1601e`; GitHub's API listed no jobs, and the logs endpoint returned 403 because repository admin rights are required. A new push will trigger another run, but its result must be checked. MySQL transaction row locking and production deployment remain unverified. Xdebug printed a local warning because `d:/wamp64/logs/xdebug.log` is unavailable; local test results were unaffected.
+GitHub Actions runs `43018105895` and `43019123433` failed workflow validation before creating jobs. The run page identified the invalid job-level `runner.temp` context; the workflow now uses `/tmp/vuka-ci-logs` on the Ubuntu runner. The next push will verify this correction. MySQL transaction row locking and production deployment remain unverified. Xdebug printed a local warning because `d:/wamp64/logs/xdebug.log` is unavailable; local test results were unaffected.
