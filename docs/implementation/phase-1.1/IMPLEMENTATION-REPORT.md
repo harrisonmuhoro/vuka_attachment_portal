@@ -12,6 +12,7 @@
 - Added an explicit CLI maintenance command for expired vacancies.
 - Standardized password-setting rules and hashing, preserved existing credentials, and added successful-login hash upgrades.
 - Fixed administrator profile role lookup and returned only allowed profile data.
+- Corrected the fresh-install schema so hashed verification codes fit without relying on an after-install migration.
 - Added CI for PHP/JavaScript syntax, HTTP security regression coverage, and disposable MySQL migration/rollback coverage.
 - Updated README policy text and retained the original Phase 1 delivery record with its later merge status clarified.
 

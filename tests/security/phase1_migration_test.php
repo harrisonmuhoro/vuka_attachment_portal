@@ -26,6 +26,12 @@ try {
     $testDb->exec("INSERT INTO roles VALUES (1,'super_admin')");
     $testDb->exec("INSERT INTO admin_users (email,role_id,status) VALUES ('admin@vuka.local',1,'active'),('operator@example.test',1,'active')");
 
+    $freshSchema = file_get_contents(__DIR__ . '/../../config/database.sql');
+    $freshSchemaSupportsHashes = is_string($freshSchema)
+        && preg_match('/`verification_code`\\s+VARCHAR\\(255\\)/i', $freshSchema) === 1;
+    $record('Fresh-install schema can store hashed verification codes', $freshSchemaSupportsHashes,
+        $freshSchemaSupportsHashes ? 'VARCHAR(255)' : 'verification_code must be VARCHAR(255)');
+
     $environment = getenv();
     $environment['DB_DSN'] = $testDsn;
     $environment['DB_USER'] = DB_USER;
