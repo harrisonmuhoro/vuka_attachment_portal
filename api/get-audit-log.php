@@ -1,12 +1,5 @@
 <?php
-/**
- * Get Audit Log API
- * GET /api/get-audit-log.php
- * 
- * SUPER ADMIN ONLY
- * Retrieves audit logs for compliance and security monitoring
- * Department Admins can view logs for their department only
- */
+/** Role-scoped administrative audit log. */
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -17,73 +10,75 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
 
-header('Content-Type: application/json; charset=utf-8');
-
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     ob_end_clean();
-    json_response(false, null, 'Method not allowed');
+    json_response(false, null, 'Method not allowed', 405);
 }
 
 try {
-    // AUTHENTICATION: Require any admin-tier role
-    $session = requireAnyAdmin();
-    
-    $auditLogger = $GLOBALS['auditLogger'];
-    
-    // Super Admin can see all logs
-    // Department Admin sees logs for their department admins
+    $session = requireAuth();
+    $role = (string)($session['role_name'] ?? '');
+    if (!in_array($role, ['super_admin', 'hr_coordinator', 'department_supervisor'], true)) {
+        ob_end_clean();
+        json_response(false, null, 'Forbidden', 403);
+    }
+
     $filters = [];
-    
-    if (!empty($_GET['action'])) {
-        $filters['action'] = $_GET['action'];
+    if ($role === 'department_supervisor') {
+        $departmentId = (int)($session['department_id'] ?? 0);
+        if ($departmentId <= 0) {
+            ob_end_clean();
+            json_response(false, null, 'Department scope is unavailable', 403);
+        }
+        $filters['department_id'] = $departmentId;
     }
-    
-    if (!empty($_GET['start_date'])) {
-        $filters['start_date'] = $_GET['start_date'];
+
+    $action = trim((string)($_GET['action'] ?? ''));
+    if ($action !== '') {
+        if (!preg_match('/^[a-z][a-z0-9_]{0,49}$/', $action)) {
+            ob_end_clean();
+            json_response(false, null, 'Invalid action filter', 422);
+        }
+        $filters['action'] = $action;
     }
-    
-    if (!empty($_GET['end_date'])) {
-        $filters['end_date'] = $_GET['end_date'];
+    foreach (['start_date', 'end_date'] as $dateKey) {
+        $value = trim((string)($_GET[$dateKey] ?? ''));
+        if ($value !== '') {
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+            if (!$date || $date->format('Y-m-d') !== $value) {
+                ob_end_clean();
+                json_response(false, null, 'Date filters must use YYYY-MM-DD', 422);
+            }
+            $filters[$dateKey] = $value;
+        }
     }
-    
-    if ($session['role_name'] === 'department_supervisor') {
-        // Only show logs for their own department's admins
-        // Get all admins in their department
-        $stmt = $pdo->prepare("
-            SELECT GROUP_CONCAT(id) as admin_ids
-            FROM admin_users
-            WHERE department_id = ?
-        ");
-        $stmt->execute([$session['department_id']]);
-        $result = $stmt->fetch();
-        
-        // For now, show all logs created by any admin (can be restricted further)
-        // In a more restrictive setup, would need to filter by department
+    if (isset($filters['start_date'], $filters['end_date']) && $filters['start_date'] > $filters['end_date']) {
+        ob_end_clean();
+        json_response(false, null, 'start_date must not be after end_date', 422);
     }
-    
-    $limit = !empty($_GET['limit']) ? (int)$_GET['limit'] : 100;
-    $offset = !empty($_GET['offset']) ? (int)$_GET['offset'] : 0;
-    
-    // Get logs
+    $limit = isset($_GET['limit']) ? filter_var($_GET['limit'], FILTER_VALIDATE_INT) : 100;
+    $offset = isset($_GET['offset']) ? filter_var($_GET['offset'], FILTER_VALIDATE_INT) : 0;
+    if ($limit === false || $limit < 1 || $limit > 100 || $offset === false || $offset < 0 || $offset > 1000000) {
+        ob_end_clean();
+        json_response(false, null, 'Pagination must use limit 1-100 and offset 0-1000000', 422);
+    }
+
+    $auditLogger = $GLOBALS['auditLogger'];
     $logs = $auditLogger->getAllAuditLogs($filters, $limit, $offset);
-    
-    // Get statistics
-    $stats = $auditLogger->getAuditStatistics();
-    
+    $totalRecords = $auditLogger->countAuditLogs($filters);
+    $statistics = $auditLogger->getAuditStatistics($filters);
+
     ob_end_clean();
     json_response(true, [
         'logs' => $logs,
-        'total_records' => count($logs),
-        'statistics' => $stats,
+        'total_records' => $totalRecords,
+        'statistics' => $statistics,
         'limit' => $limit,
         'offset' => $offset,
-        'user_role' => $session['role_name']
+        'user_role' => $role,
     ]);
-    
-} catch (Exception $e) {
-    error_log("Get audit log error: " . $e->getMessage());
+} catch (Throwable $e) {
+    error_log('Audit log retrieval failed.');
     ob_end_clean();
-    json_response(false, null, 'Failed to retrieve audit logs');
+    json_response(false, null, 'Failed to retrieve audit logs', 500);
 }
-
-?>

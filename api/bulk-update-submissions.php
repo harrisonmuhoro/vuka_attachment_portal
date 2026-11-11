@@ -1,4 +1,6 @@
 <?php
+/** All-or-nothing bulk review using the same workflow and scope rules as single updates. */
+
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
@@ -6,125 +8,80 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/application-workflow.php';
 require_once __DIR__ . '/../lib/notifications.php';
 
-$session = requireAnyAdmin();
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     ob_end_clean();
-    json_response(false, null, 'Method not allowed');
+    json_response(false, null, 'Method not allowed', 405);
 }
-
-$scope = $GLOBALS['sessionManager']->getScopedDepartment($session);
-
-$allowedStatuses = ['accepted', 'rejected', 'pending', 'deployed', 'ongoing'];
+require_json_request();
 
 try {
+    $session = requireAnyAdmin();
     $input = json_decode(file_get_contents('php://input'), true);
     if (!is_array($input)) {
-        $input = [];
-    }
-
-    $rawIds = isset($input['ids']) ? $input['ids'] : null;
-    $status = isset($input['status']) ? trim((string)$input['status']) : '';
-    $rejectionReason = isset($input['rejection_reason']) ? trim((string)$input['rejection_reason']) : '';
-    $reviewNotes = isset($input['review_notes']) ? trim((string)$input['review_notes']) : '';
-
-    // Validate: ids is a non-empty array
-    if (!is_array($rawIds) || count($rawIds) === 0) {
         ob_end_clean();
-        json_response(false, null, 'ids must be a non-empty array');
+        json_response(false, null, 'Invalid JSON input', 400);
     }
-
-    // Cast each to int and drop non-positive
+    $rawIds = $input['ids'] ?? null;
+    if (!is_array($rawIds) || !$rawIds || count($rawIds) > 100) {
+        ob_end_clean();
+        json_response(false, null, 'Provide between 1 and 100 submission IDs', 422);
+    }
     $ids = [];
     foreach ($rawIds as $rawId) {
-        $castId = (int)$rawId;
-        if ($castId > 0) {
-            $ids[] = $castId;
+        if (!(is_int($rawId) || (is_string($rawId) && ctype_digit($rawId))) || (int)$rawId <= 0) {
+            ob_end_clean();
+            json_response(false, null, 'Every submission ID must be a positive integer', 422);
         }
+        $ids[] = (int)$rawId;
     }
-    if (count($ids) === 0) {
+    $ids = array_values(array_unique($ids));
+    $requestedStatus = trim((string)($input['status'] ?? ''));
+    $reason = trim((string)($input['rejection_reason'] ?? ''));
+    $notes = trim((string)($input['review_notes'] ?? ''));
+    $assignedRole = isset($input['assigned_role']) ? trim((string)$input['assigned_role']) : null;
+    $assignedStation = isset($input['assigned_station']) ? trim((string)$input['assigned_station']) : null;
+    $workflow = new ApplicationWorkflow($pdo);
+    $status = $workflow->normalizeStatus($requestedStatus);
+    if ($status === '') {
         ob_end_clean();
-        json_response(false, null, 'No valid submission ids provided');
+        json_response(false, null, 'A target status is required for bulk review', 422);
     }
-
-    // Validate: status must be one of the allowed values
-    if (!in_array($status, $allowedStatuses, true)) {
-        ob_end_clean();
-        json_response(false, null, 'Invalid status value');
-    }
-
-    // Rejection requires a reason
-    if ($status === 'rejected' && $rejectionReason === '') {
-        ob_end_clean();
-        json_response(false, null, 'Rejection reason is required for bulk rejection');
-    }
-
-    $rejectionParam = ($rejectionReason === '') ? null : $rejectionReason;
-    $notesValue = ($reviewNotes === '') ? "Bulk update to {$status}" : $reviewNotes;
-
-    $updated = 0;
-    $skipped = 0;
+    $workflow->validateReviewFields($status, $reason, $notes, $assignedRole, $assignedStation);
 
     $pdo->beginTransaction();
+    $submissions = $workflow->lockScopedSubmissions($session, $ids);
 
-    // Prepare statements once
-    $selectStmt = $pdo->prepare('SELECT id, user_id, full_name, email, department_applied FROM submissions WHERE id = ?');
-    $updateStmt = $pdo->prepare('UPDATE submissions SET status = ?, rejection_reason = COALESCE(?, rejection_reason), last_updated_by = ?, last_updated_at = NOW() WHERE id = ?');
-    $historyStmt = $pdo->prepare('INSERT INTO review_history (submission_id, reviewer_pf, reviewer_department, status, notes) VALUES (?, ?, ?, ?, ?)');
-
+    // Validate every record before writing any record: no silent partial updates.
     foreach ($ids as $id) {
-        $selectStmt->execute([$id]);
-        $row = $selectStmt->fetch(PDO::FETCH_ASSOC);
-
-        // Verify exists and is in scope
-        if (!$row) {
-            $skipped++;
-            continue;
-        }
-        if ($scope !== 'ALL' && $row['department_applied'] !== $scope) {
-            $skipped++;
-            continue;
-        }
-
-        $updateStmt->execute([$status, $rejectionParam, $session['admin_id'], $id]);
-
-        $historyStmt->execute([
-            $id,
-            $session['pf_number'],
-            $session['department'],
-            $status,
-            $notesValue,
-        ]);
-
-        if (!empty($row['user_id'])) {
-            createNotification(
-                $pdo,
-                (int)$row['user_id'],
-                'student',
-                'Application Update',
-                "Your application status is now: {$status}.",
-                '../pages/student_dashboard.php'
-            );
-        }
-
-        $updated++;
+        $workflow->validateTransition((string)$session['role_name'], (string)$submissions[$id]['status'], $status);
     }
-
+    $updated = [];
+    foreach ($ids as $id) {
+        $submission = $submissions[$id];
+        $workflow->applyTransition($session, $submission, $status, $reason, $notes, $assignedRole, $assignedStation);
+        $updated[] = $submission;
+    }
     $pdo->commit();
 
-    ob_end_clean();
-    json_response(true, [
-        'message' => "Updated {$updated} application(s)",
-        'updated' => $updated,
-        'skipped' => $skipped,
-    ]);
-} catch (Exception $e) {
-    if (isset($pdo) && $pdo->inTransaction()) {
-        $pdo->rollBack();
+    foreach ($updated as $submission) {
+        if (!empty($submission['user_id'])) {
+            createNotification($pdo, (int)$submission['user_id'], 'student', 'Application Update',
+                'Your application status is now: ' . $status . '.', '../pages/student_dashboard.php');
+        }
     }
-    error_log('Bulk update failed: ' . $e->getMessage());
+
     ob_end_clean();
-    json_response(false, null, 'Bulk update failed');
+    json_response(true, ['message' => 'All selected applications were updated', 'updated' => count($updated), 'skipped' => 0]);
+} catch (ApplicationWorkflowException $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    ob_end_clean();
+    json_response(false, null, $e->getMessage(), $e->getHttpStatus());
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('Bulk application update failed.');
+    ob_end_clean();
+    json_response(false, null, 'Bulk update could not be completed', 500);
 }

@@ -185,7 +185,7 @@
                                  </div>
                                  <div class="col-md-6">
                                      <label class="form-label">Password</label>
-                                     <input type="password" class="form-control" id="newAdminPassword" required>
+                                     <input type="password" class="form-control" id="newAdminPassword" minlength="12" maxlength="72" autocomplete="new-password" required>
                                  </div>
                                  <div class="col-12 mt-3">
                                      <button type="submit" class="btn btn-primary">Create Account</button>

@@ -21,6 +21,7 @@ require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/notifications.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
+require_once __DIR__ . '/../lib/application-workflow.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -142,8 +143,6 @@ function handleGet(PDO $pdo)
 function handlePost(PDO $pdo)
 {
     $session = requireSupervisor();
-    $sessionManager = $GLOBALS['sessionManager'];
-    $scope = $sessionManager->getScopedDepartment($session);
 
     // Accept JSON body, fall back to form-encoded ($_POST).
     $raw = file_get_contents('php://input');
@@ -178,30 +177,13 @@ function handlePost(PDO $pdo)
     }
 
     try {
-        $stmt = $pdo->prepare('SELECT id, user_id, full_name, email, department_applied, status FROM submissions WHERE id = ?');
-        $stmt->execute([$submissionId]);
-        $submission = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$submission) {
-            ob_end_clean();
-            http_response_code(404);
-            json_response(false, null, 'Submission not found');
-        }
-
-        // Department scope check.
-        if ($scope !== 'ALL' && $submission['department_applied'] !== $scope) {
-            ob_end_clean();
-            http_response_code(403);
-            json_response(false, null, 'Forbidden: submission is outside your department');
-        }
-
-        // Attachment must be ongoing or completed to be evaluated.
-        if (!in_array($submission['status'], ['ongoing', 'completed'], true)) {
-            ob_end_clean();
-            json_response(false, null, 'Intern must be ongoing or completed to be evaluated');
-        }
-
         $pdo->beginTransaction();
+        $workflow = new ApplicationWorkflow($pdo);
+        $submissionSet = $workflow->lockScopedSubmissions($session, [$submissionId]);
+        $submission = $submissionSet[$submissionId];
+        if (!in_array($submission['status'], ['ongoing', 'completed'], true)) {
+            throw new ApplicationWorkflowException('Intern must be ongoing or completed to be evaluated', 409);
+        }
 
         // Upsert (UNIQUE submission_id) — gracefully updates an existing evaluation.
         $upsert = $pdo->prepare('
@@ -234,19 +216,8 @@ function handlePost(PDO $pdo)
         // Move submission to 'completed' on evaluation submit.
         $statusChanged = false;
         if ($submission['status'] !== 'completed') {
-            $pdo->prepare("UPDATE submissions SET status = 'completed', last_updated_by = ?, last_updated_at = NOW() WHERE id = ?")
-                ->execute([$session['admin_id'], $submissionId]);
+            $workflow->applyTransition($session, $submission, 'completed', '', 'Attachment completed — performance evaluation submitted.');
             $statusChanged = true;
-
-            // Mirror to review_history (same columns as bulk-update-submissions.php).
-            $pdo->prepare('INSERT INTO review_history (submission_id, reviewer_pf, reviewer_department, status, notes) VALUES (?, ?, ?, ?, ?)')
-                ->execute([
-                    $submissionId,
-                    $session['pf_number'],
-                    $session['department'],
-                    'completed',
-                    'Attachment completed — performance evaluation submitted.',
-                ]);
         }
 
         $pdo->commit();
@@ -282,11 +253,15 @@ function handlePost(PDO $pdo)
             'submission_id' => $submissionId,
             'status_changed_to_completed' => $statusChanged,
         ]);
-    } catch (Exception $e) {
+    } catch (ApplicationWorkflowException $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        ob_end_clean();
+        json_response(false, null, $e->getMessage(), $e->getHttpStatus());
+    } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        error_log('Evaluation POST failed: ' . $e->getMessage());
+        error_log('Evaluation POST failed.');
         ob_end_clean();
         json_response(false, null, 'Failed to submit evaluation');
     }

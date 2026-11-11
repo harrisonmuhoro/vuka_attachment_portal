@@ -59,6 +59,21 @@ try {
     $refusedDown = $runScript('scripts/rollback-001.php');
     $stillWide = $testDb->query("SHOW COLUMNS FROM users LIKE 'verification_code'")->fetch(PDO::FETCH_ASSOC);
     $record('Rollback refuses to truncate stored verification hashes', $reapply[0] === 0 && $refusedDown[0] !== 0 && isset($stillWide['Type']) && stripos($stillWide['Type'], 'varchar(255)') !== false, trim($refusedDown[1] . $refusedDown[2]));
+
+    // The scheduled vacancy maintenance command is separately exercised in this disposable DB.
+    $testDb->exec("CREATE TABLE vacancies (id INT AUTO_INCREMENT PRIMARY KEY, status VARCHAR(20) NOT NULL, deadline_at DATETIME NULL) ENGINE=InnoDB");
+    $expired = date('Y-m-d H:i:s', time() - 3600);
+    $open = date('Y-m-d H:i:s', time() + 3600);
+    $vacancyInsert = $testDb->prepare('INSERT INTO vacancies (status,deadline_at) VALUES (?,?)');
+    $vacancyInsert->execute(['approved', $expired]);
+    $vacancyInsert->execute(['approved', $open]);
+    require_once dirname(__DIR__, 2) . '/lib/vacancy-maintenance.php';
+    $testDb->exec("SET time_zone = '+00:00'");
+    $testDb->exec("UPDATE vacancies SET deadline_at = DATE_SUB(NOW(), INTERVAL 1 HOUR) WHERE id=1");
+    $testDb->exec("UPDATE vacancies SET deadline_at = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id=2");
+    $closedCount = closeExpiredVacancies($testDb);
+    $statuses = $testDb->query('SELECT status FROM vacancies ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+    $record('Scheduled vacancy maintenance closes expired approvals without closing open vacancies', $closedCount === 1 && $statuses === ['closed', 'approved'], 'closed=' . $closedCount);
 } catch (Throwable $e) {
     $record('Disposable migration database setup and execution', false, 'Migration test failed without printing connection details.');
 } finally {

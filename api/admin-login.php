@@ -14,6 +14,7 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/rate-limiter.php';
+require_once __DIR__ . '/../lib/password-policy.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -75,6 +76,7 @@ try {
         ob_end_clean();
         json_response(false, null, 'Invalid PF Number or password', 401);
     }
+    PasswordPolicy::rehashIfNeeded($pdo, 'admin_users', (int)$admin['id'], (string)$password, (string)$admin['password_hash']);
     
     $sessionResult = $GLOBALS['sessionManager']->createSession($admin['id'], 'admin', $admin['role_id']);
     if (empty($sessionResult['success'])) {
