@@ -56,8 +56,24 @@ function handleGet(PDO $pdo)
     }
 
     try {
-        $stmt = $pdo->prepare('SELECT id, user_id, full_name, department_applied, status FROM submissions WHERE id = ?');
-        $stmt->execute([$submissionId]);
+        $scopeSql = '';
+        $scopeParams = [$submissionId];
+        if ($sessionManager->isStudent($session)) {
+            $scopeSql = ' AND user_id = ?';
+            $scopeParams[] = (int)$session['user_id'];
+        } elseif ($sessionManager->isAdminTier($session)) {
+            $scope = $sessionManager->getScopedDepartment($session);
+            if ($scope === null) {
+                ob_end_clean();
+                json_response(false, null, 'Forbidden: department scope unavailable', 403);
+            }
+            if ($scope !== 'ALL') {
+                $scopeSql = ' AND department_applied = ?';
+                $scopeParams[] = $scope;
+            }
+        }
+        $stmt = $pdo->prepare('SELECT id, user_id, full_name, department_applied, status FROM submissions WHERE id = ?' . $scopeSql);
+        $stmt->execute($scopeParams);
         $submission = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$submission) {
@@ -66,7 +82,7 @@ function handleGet(PDO $pdo)
             json_response(false, null, 'Submission not found');
         }
 
-        // Scope check.
+        // Scope check remains as defense in depth; the lookup itself is scoped.
         $isStudent = $sessionManager->isStudent($session);
         if ($isStudent) {
             if ((int)$submission['user_id'] !== (int)$session['user_id']) {

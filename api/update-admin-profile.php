@@ -1,8 +1,9 @@
 <?php
 require_once '../session-manager.php';
 require_once '../audit-logger.php';
+require_once '../config/config.php';
 
-requireAnyAdmin();
+$session = requireAnyAdmin();
 
 $phone = trim($_POST['phone'] ?? '');
 
@@ -21,7 +22,7 @@ if ($errors) {
 $stmt = $pdo->prepare("UPDATE admin_users
                         SET phone = ?, updated_at = NOW()
                         WHERE id = ?");
-$stmt->execute([$phone, $session['admin_id']]);
+$stmt->execute([$phone, (int)$session['admin_id']]);
 
 logAudit($pdo, 'admin_profile_updated', "Admin ID {$session['admin_id']} updated profile");
 

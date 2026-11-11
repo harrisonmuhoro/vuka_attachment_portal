@@ -31,7 +31,7 @@ try {
         ob_end_clean();
         json_response(false, [
             'authenticated' => false
-        ], 'No valid session');
+        ], 'No valid session', 401);
     }
     
     // Return verified session data

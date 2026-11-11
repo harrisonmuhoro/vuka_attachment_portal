@@ -21,7 +21,7 @@ $db->sqliteCreateFunction('NOW', static function () { return date('Y-m-d H:i:s')
 
 $schema = [
     'CREATE TABLE roles (id INTEGER PRIMARY KEY, role_name TEXT, display_name TEXT, level INTEGER)',
-    'CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT UNIQUE)',
+    'CREATE TABLE departments (id INTEGER PRIMARY KEY, name TEXT UNIQUE, description TEXT, min_admins INTEGER DEFAULT 1)',
     'CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, full_name TEXT NOT NULL, national_id TEXT UNIQUE NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, phone TEXT, registration_date TEXT NOT NULL, verified INTEGER NOT NULL DEFAULT 0, verification_code TEXT, verification_sent_at TEXT, status TEXT NOT NULL DEFAULT "active", profile_photo TEXT, profile_photo_blob BLOB, pending_email TEXT, last_login TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE admin_users (id INTEGER PRIMARY KEY AUTOINCREMENT, national_id TEXT NOT NULL, pf_number TEXT UNIQUE NOT NULL, full_name TEXT NOT NULL, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL, phone TEXT, department TEXT, department_id INTEGER, role_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT "active", profile_photo TEXT, profile_photo_blob BLOB, pending_email TEXT, email_change_token TEXT, email_change_expires TEXT, created_by INTEGER, last_login TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT UNIQUE NOT NULL, user_id INTEGER, admin_id INTEGER, user_type TEXT NOT NULL, role_id INTEGER NOT NULL, ip_address TEXT, user_agent TEXT, created_at TEXT NOT NULL, last_activity TEXT NOT NULL, expires_at TEXT NOT NULL, is_valid INTEGER NOT NULL DEFAULT 1)',
@@ -37,7 +37,7 @@ $schema = [
 ];
 foreach ($schema as $sql) $db->exec($sql);
 $db->exec("INSERT INTO roles VALUES (1,'super_admin','Super Admin',1),(2,'hr_coordinator','HR Coordinator',2),(3,'department_supervisor','Department Supervisor',3),(4,'student','Student',4)");
-$db->exec("INSERT INTO departments VALUES (1,'ICT'),(2,'Finance'),(3,'HR')");
+$db->exec("INSERT INTO departments (id,name) VALUES (1,'ICT'),(2,'Finance'),(3,'HR')");
 
 $studentPassword = 'Current-Password-123';
 $passwordHash = password_hash($studentPassword, PASSWORD_DEFAULT);
@@ -251,6 +251,9 @@ try {
     $assert('Supervisor cannot read another department detail', $r[0] === 404, 'HTTP ' . $r[0]);
     $r = $request('GET', '/api/get-submissions.php', $tokenHR);
     $assert('HR retains system-wide read scope', $r[0] === 200 && ($decode($r[1])['count'] ?? 0) === 3, 'HTTP ' . $r[0]);
+    $r = $request('GET', '/api/get-departments.php', $tokenSupervisor);
+    $departmentRows = $decode($r[1])['departments'] ?? [];
+    $assert('Supervisor department directory is isolated', $r[0] === 200 && count($departmentRows) === 1 && ($departmentRows[0]['name'] ?? '') === 'ICT', 'HTTP ' . $r[0] . ' rows=' . json_encode($departmentRows));
     $r = $request('GET', '/api/get-submissions.php', $tokenSuperAdmin);
     $assert('Super Admin retains system-wide read scope', $r[0] === 200 && ($decode($r[1])['count'] ?? 0) === 3, 'HTTP ' . $r[0]);
 
@@ -326,6 +329,20 @@ try {
     $assert('Valid bulk review updates all and records authenticated reviewer identity', $r[0] === 200 && ($decode($r[1])['updated'] ?? 0) === 2 && $bulkHistory['reviewer_pf'] === 'HR-PF-01' && $bulkHistory['reviewer_department'] === 'HR', 'HTTP ' . $r[0]);
     $r = $jsonRequest('POST', '/api/bulk-update-submissions.php', $tokenSupervisor, ['ids' => [$bulkFirst], 'status' => 'deployed', 'assigned_role' => 'Analyst', 'assigned_station' => 'Office 1']);
     $assert('Supervisor cannot bypass HR decision through individual or bulk paths', $r[0] === 200, 'HTTP ' . $r[0]);
+    $r = $jsonRequest('POST', '/api/delete-submission.php', $tokenSupervisor, ['submission_id' => 1]);
+    $assert('Supervisor cannot delete applications', $r[0] === 403, 'HTTP ' . $r[0]);
+
+    $r = $jsonRequest('POST', '/api/toggle-admin-status.php', $tokenSuperAdmin, ['admin_id' => $financeSupervisorId, 'status' => 'inactive', 'reason' => 'Phase 2 test']);
+    $invalidated = (int)$db->query('SELECT is_valid FROM sessions WHERE admin_id=' . $financeSupervisorId . ' ORDER BY id DESC LIMIT 1')->fetchColumn();
+    $rAfterDeactivate = $request('GET', '/api/verify-session.php', $tokenFinanceSupervisor);
+    $assert('Super Admin deactivation invalidates target sessions and is audited', $r[0] === 200 && $invalidated === 0 && $rAfterDeactivate[0] === 401, 'HTTP ' . $r[0] . ' invalidated=' . $invalidated . ' verify=' . $rAfterDeactivate[0] . ' body=' . $r[1]);
+    $r = $jsonRequest('POST', '/api/toggle-admin-status.php', $tokenSuperAdmin, ['admin_id' => $financeSupervisorId, 'status' => 'active']);
+    $assert('Administrator lifecycle allows valid reactivation', $r[0] === 200, 'HTTP ' . $r[0]);
+    $r = $jsonRequest('POST', '/api/toggle-admin-status.php', $tokenHR, ['admin_id' => $financeSupervisorId, 'status' => 'inactive']);
+    $assert('HR cannot mutate administrator lifecycle', $r[0] === 403, 'HTTP ' . $r[0]);
+    $r = $request('POST', '/api/update-admin-profile.php', $tokenSupervisor, http_build_query(['phone' => '+254700000001']), ['Content-Type: application/x-www-form-urlencoded']);
+    $storedPhone = $db->query('SELECT phone FROM admin_users WHERE id=' . $supervisorId)->fetchColumn();
+    $assert('Administrator profile update uses authenticated identity', $r[0] === 200 && $storedPhone === '+254700000001', 'HTTP ' . $r[0]);
 
     // A request body cannot forge reviewer identity or expand supervisor scope.
     $r = $jsonRequest('POST', '/api/update-submission.php', $tokenHR, ['submission_id' => 1, 'status' => 'accepted', 'pf_number' => 'FORGED-PF', 'department' => 'Finance']);

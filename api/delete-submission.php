@@ -20,6 +20,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 try {
     // Require an admin-tier session; derive department scope from it.
     $session = requireAnyAdmin();
+    if (($session['role_name'] ?? '') === 'department_supervisor') {
+        ob_end_clean();
+        json_response(false, null, 'Forbidden: supervisors cannot delete applications', 403);
+    }
     $scopedDept = $GLOBALS['sessionManager']->getScopedDepartment($session);
 
     $data = json_decode(file_get_contents('php://input'), true);

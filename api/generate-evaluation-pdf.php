@@ -44,11 +44,26 @@ if ($submissionId <= 0) {
     pdf_error(400, 'submission_id is required');
 }
 
+$isStudent = $sessionManager->isStudent($session);
+
 try {
+    $scope = $sessionManager->getScopedDepartment($session);
+    $scopeClause = '';
+    $submissionParams = [$submissionId];
+    if (!$isStudent && $scope !== 'ALL') {
+        if (!is_string($scope) || trim($scope) === '') pdf_error(403, 'Forbidden');
+        $scopeClause = ' AND department_applied = ?';
+        $submissionParams[] = $scope;
+    } elseif (!$isStudent && $scope === null) {
+        pdf_error(403, 'Forbidden');
+    } elseif ($isStudent) {
+        $scopeClause = ' AND user_id = ?';
+        $submissionParams[] = (int)$session['user_id'];
+    }
     $stmt = $pdo->prepare('SELECT id, user_id, full_name, national_id, email, department_applied,
                                   assigned_role, assigned_station, institution_name, course_applying, status
-                           FROM submissions WHERE id = ?');
-    $stmt->execute([$submissionId]);
+                           FROM submissions WHERE id = ?' . $scopeClause);
+    $stmt->execute($submissionParams);
     $submission = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log('Evaluation PDF submission lookup failed: ' . $e->getMessage());
@@ -59,18 +74,14 @@ if (!$submission) {
     pdf_error(404, 'Submission not found');
 }
 
-// Authorization: admin tier (department-scoped) OR the owning student.
-$isStudent = $sessionManager->isStudent($session);
-if ($isStudent) {
-    if ((int)$submission['user_id'] !== (int)$session['user_id']) {
-        pdf_error(403, 'Forbidden: not your submission');
-    }
-} else {
+// Authorization: the SQL lookup above already applied the owner/department scope.
+// Keep the role guard here as defense in depth.
+if (!$isStudent) {
     if (!$sessionManager->isAdminTier($session)) {
         pdf_error(403, 'Forbidden: insufficient permissions');
     }
     $scope = $sessionManager->getScopedDepartment($session);
-    if ($scope !== 'ALL' && $submission['department_applied'] !== $scope) {
+    if ($scope === null || ($scope !== 'ALL' && $submission['department_applied'] !== $scope)) {
         pdf_error(403, 'Forbidden: outside your department');
     }
 }
