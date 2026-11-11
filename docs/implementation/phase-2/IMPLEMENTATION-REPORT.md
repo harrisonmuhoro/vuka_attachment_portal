@@ -1,7 +1,7 @@
 # Phase 2 implementation report
 
 **Starting commit:** `a7b1d98a6c8061ae863aaf0c173abf0201d39b40`
-**Working branch:** `feature/phase-2-rbac-data-isolation`
+**Working branch:** `feature-phase-2-rbac-data-isolation` (GitHub-safe equivalent; the literal `feature/phase-2-rbac-data-isolation` conflicts with the existing `feature` branch ref)
 **Target:** `main` (no merge performed)
 
 ## Completed

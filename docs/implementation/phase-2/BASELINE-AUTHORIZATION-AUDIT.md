@@ -1,7 +1,7 @@
 # Phase 2 baseline authorization audit
 
 **Baseline:** `a7b1d98a6c8061ae863aaf0c173abf0201d39b40` (`origin/main` at audit start)  
-**Working branch:** `feature/phase-2-rbac-data-isolation`
+**Working branch:** `feature-phase-2-rbac-data-isolation` (GitHub-safe equivalent because `feature` already exists)
 
 ## Controls already present
 
