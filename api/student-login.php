@@ -22,7 +22,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
-require_json_request();
 
 checkRateLimit($pdo, 'student-login');
 
@@ -56,28 +55,26 @@ try {
     if (!$student) {
         recordLoginAttempt($pdo, 'student-login', false, $nationalId);
         ob_end_clean();
-        json_response(false, null, 'Invalid credentials', 401);
+        json_response(false, null, 'Invalid credentials');
     }
     
     // Check account status - BACKEND ENFORCED
     if ($student['status'] !== 'active') {
-        recordLoginAttempt($pdo, 'student-login', false);
         ob_end_clean();
-        json_response(false, null, 'Invalid credentials', 401);
+        json_response(false, null, 'Account is inactive or suspended');
     }
     
     // Verify password
     if (!password_verify($password, $student['password_hash'])) {
         recordLoginAttempt($pdo, 'student-login', false, $nationalId);
         ob_end_clean();
-        json_response(false, null, 'Invalid credentials', 401);
+        json_response(false, null, 'Invalid credentials');
     }
     
     // Check email verification
     if (!$student['verified']) {
-        recordLoginAttempt($pdo, 'student-login', false);
         ob_end_clean();
-        json_response(false, null, 'Invalid credentials', 401);
+        json_response(false, null, 'Please verify your email before login');
     }
     
     // Get student role ID (student = role_id 4 in the 4-role model; resolved by name to stay correct)
@@ -113,7 +110,6 @@ try {
     json_response(true, [
         // createSession sets a cookie, but Bearer clients need the session_id surfaced as 'token'
         'token' => $sessionResult['session_id'],
-        'csrf_token' => $sessionResult['csrf_token'],
         'user_id' => $student['id'],
         'full_name' => $student['full_name'],
         'email' => $student['email'],
@@ -122,7 +118,7 @@ try {
     ]);
     
 } catch (Exception $e) {
-    error_log('Applicant login request failed.');
+    error_log("Student login error: " . $e->getMessage());
     ob_end_clean();
     json_response(false, null, 'Login failed');
 }

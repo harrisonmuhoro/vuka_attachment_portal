@@ -95,16 +95,6 @@ if (!defined('VUKA_CONFIG_LOADED')) {
         }
     }
 
-    if (!function_exists('require_json_request')) {
-        function require_json_request()
-        {
-            $contentType = strtolower(trim(explode(';', (string)($_SERVER['CONTENT_TYPE'] ?? ''))[0]));
-            if ($contentType !== 'application/json') {
-                json_response(false, null, 'Content-Type must be application/json', 415);
-            }
-        }
-    }
-
     if (!function_exists('hash_password')) {
         function hash_password($password)
         {
@@ -143,19 +133,13 @@ if (!defined('VUKA_CONFIG_LOADED')) {
         }
     }
 
-    $configuredDsn = $env('DB_DSN', '');
-    $dsn = $configuredDsn !== ''
-        ? $configuredDsn
-        : 'mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4';
+    $dsn = 'mysql:host=' . DB_HOST . ';port=' . DB_PORT . ';dbname=' . DB_NAME . ';charset=utf8mb4';
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-        if (strpos($dsn, 'sqlite:') === 0) {
-            $pdo->sqliteCreateFunction('NOW', static function () { return date('Y-m-d H:i:s'); }, 0);
-        }
         $GLOBALS['pdo'] = $pdo;
     } catch (PDOException $exception) {
         error_log('Vuka database connection failed: ' . $exception->getMessage());

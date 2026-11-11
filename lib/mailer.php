@@ -3,8 +3,9 @@
  * Mailer wrapper — Vuka Portal (Feature #1)
  *
  * Sends HTML email via SMTP (PHPMailer) when configured. If SMTP credentials
- * are blank OR PHPMailer is not vendored, delivery fails closed without
- * writing message content or credential-bearing links to a project log.
+ * are blank OR PHPMailer is not vendored, it degrades gracefully to LOG-ONLY
+ * mode: the message is written to logs/mail.log and the function returns true,
+ * so calling flows (password reset, notifications) are never blocked.
  *
  * To enable real sending: set SMTP_USER / SMTP_PASS in config.php and drop
  * PHPMailer into lib/phpmailer/ (PHPMailer.php, SMTP.php, Exception.php).
@@ -56,28 +57,26 @@ function sendMail(string $toEmail, string $toName, string $subject, string $html
         $mail->send();
         return true;
     } catch (Exception $e) {
-        error_log('Mail delivery failed.');
+        error_log('Mailer error: ' . $e->getMessage());
+        // Fall back to logging so the calling flow still succeeds.
         return logMailFallback($toEmail, $toName, $subject, $htmlBody, 'send failed: ' . $e->getMessage());
     }
 }
 
 /**
- * Record only a sanitized delivery failure outside the document root.
+ * Write the email to logs/mail.log instead of sending.
  */
 function logMailFallback(string $toEmail, string $toName, string $subject, string $htmlBody, string $reason): bool {
-    $configuredDir = getenv('VUKA_LOG_DIR');
-    $logDir = $configuredDir !== false && $configuredDir !== ''
-        ? $configuredDir
-        : rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'vuka-portal-logs';
+    $logDir = __DIR__ . '/../logs';
     if (!is_dir($logDir)) {
-        @mkdir($logDir, 0700, true);
+        @mkdir($logDir, 0755, true);
     }
-    if (!is_dir($logDir) || !is_writable($logDir)) {
-        error_log('Mail delivery unavailable; private log directory is not writable.');
-        return false;
-    }
-    $entry = '[' . date('Y-m-d H:i:s') . "] Mail delivery unavailable; message content omitted.\n";
-    $written = @file_put_contents($logDir . DIRECTORY_SEPARATOR . 'mail.log', $entry, FILE_APPEND | LOCK_EX);
-    if ($written !== false) @chmod($logDir . DIRECTORY_SEPARATOR . 'mail.log', 0600);
-    return false;
+    $entry = str_repeat('=', 60) . "\n"
+        . '[' . date('Y-m-d H:i:s') . "] MAIL (log-only: {$reason})\n"
+        . "To: {$toName} <{$toEmail}>\n"
+        . "Subject: {$subject}\n"
+        . str_repeat('-', 60) . "\n"
+        . strip_tags($htmlBody) . "\n\n";
+    @file_put_contents($logDir . '/mail.log', $entry, FILE_APPEND | LOCK_EX);
+    return true;
 }

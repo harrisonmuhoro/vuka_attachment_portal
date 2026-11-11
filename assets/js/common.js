@@ -8,28 +8,6 @@
 // ============ API BASE URL ============
 const API_BASE = (window.location.pathname.includes('/pages/') || window.location.pathname.includes('\\pages\\')) ? '../api' : 'api';
 
-// Supply the session-bound CSRF token for same-origin cookie-authenticated
-// mutations. Existing Bearer-token calls continue to work unchanged.
-(function installCsrfFetchHeader() {
-    const nativeFetch = window.fetch.bind(window);
-    window.fetch = function (input, init = {}) {
-        const request = input instanceof Request ? input : null;
-        const url = request ? request.url : String(input);
-        const method = String(init.method || (request && request.method) || 'GET').toUpperCase();
-        const headers = new Headers(request ? request.headers : undefined);
-        new Headers(init.headers || {}).forEach((value, key) => headers.set(key, value));
-        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-            try {
-                if (new URL(url, window.location.href).origin === window.location.origin) {
-                    const csrfToken = sessionStorage.getItem('vukaCsrfToken');
-                    if (csrfToken && !headers.has('X-CSRF-Token')) headers.set('X-CSRF-Token', csrfToken);
-                }
-            } catch (e) { /* Leave invalid URLs to native fetch to reject. */ }
-        }
-        return nativeFetch(input, { ...init, headers });
-    };
-})();
-
 
 // ============ DARK MODE (Feature #8) ============
 // Apply saved theme ASAP.
@@ -264,23 +242,11 @@ function switchAdminTab(tabName) {
 
 
 // ============ LOGOUT ============
-async function performPortalLogout() {
-    const token = sessionStorage.getItem('adminToken') || sessionStorage.getItem('userToken');
-    if (token) {
-        try {
-            await fetch(`${API_BASE}/logout.php`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-        } catch (e) { console.warn('Logout request could not reach the server.'); }
-    }
-    sessionStorage.clear();
-    window.location.href = window.location.pathname.includes('/pages/') ? '../index.php' : 'index.php';
-}
 if (logoutBtn) logoutBtn.addEventListener('click', function () {
     if (confirm("Are you sure you want to logout?")) {
         if (uploadForm) uploadForm.reset();
-        performPortalLogout();
+        sessionStorage.clear();
+        window.location.href = window.location.pathname.includes('/pages/') ? '../index.php' : 'index.php';
     }
 });
 
@@ -289,7 +255,9 @@ if (logoutBtn) logoutBtn.addEventListener('click', function () {
 if (adminLogoutBtn) {
     adminLogoutBtn.addEventListener('click', function () {
         if (confirm("Are you sure you want to logout?")) {
-            performPortalLogout();
+            sessionStorage.clear();
+            switchView('login');
+            showToast('Admin logged out.', 'info');
         }
     });
 }

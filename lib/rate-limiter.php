@@ -36,29 +36,25 @@ function rl_client_ip(): string {
  * Reject the request (HTTP 429) if too many recent failures from this IP+endpoint.
  * Emits JSON via json_response() and exits when locked out.
  */
-function checkRateLimit(PDO $pdo, string $endpoint, bool $countAllRequests = false, ?int $maxAttempts = null, ?int $windowMinutes = null): void {
+function checkRateLimit(PDO $pdo, string $endpoint): void {
     try {
         // Opportunistic cleanup so the table never bloats (older than 24h).
-        $cleanupBefore = date('Y-m-d H:i:s', time() - 86400);
-        $cleanup = $pdo->prepare('DELETE FROM login_attempts WHERE attempted_at < ?');
-        $cleanup->execute([$cleanupBefore]);
+        $pdo->exec("DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)");
 
         $ip     = rl_client_ip();
-        $limit = $maxAttempts ?? RATE_LIMIT_MAX_FAILURES;
-        $windowMins = $windowMinutes ?? RATE_LIMIT_WINDOW_MIN;
-        $window = date('Y-m-d H:i:s', time() - ($windowMins * 60));
+        $window = date('Y-m-d H:i:s', time() - (RATE_LIMIT_WINDOW_MIN * 60));
 
-        $sql = 'SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND endpoint = ? AND attempted_at > ?';
-        if (!$countAllRequests) $sql .= ' AND success = 0';
-        $stmt = $pdo->prepare($sql);
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM login_attempts
+                               WHERE ip_address = ? AND endpoint = ?
+                               AND success = 0 AND attempted_at > ?");
         $stmt->execute([$ip, $endpoint, $window]);
         $failures = (int) $stmt->fetchColumn();
 
-        if ($failures >= $limit) {
+        if ($failures >= RATE_LIMIT_MAX_FAILURES) {
             if (function_exists('json_response')) {
                 if (!headers_sent()) { http_response_code(429); }
-                json_response(false, ['retry_after' => $windowMins * 60],
-                    'Too many attempts. Please try again in ' . $windowMins . ' minutes.');
+                json_response(false, ['retry_after' => RATE_LIMIT_WINDOW_MIN * 60],
+                    'Too many failed attempts. Please try again in ' . RATE_LIMIT_WINDOW_MIN . ' minutes.');
             } else {
                 http_response_code(429);
                 echo json_encode(['success' => false, 'error' => 'Too many failed attempts.']);
@@ -78,8 +74,7 @@ function recordLoginAttempt(PDO $pdo, string $endpoint, bool $success, ?string $
     try {
         $pdo->prepare("INSERT INTO login_attempts (ip_address, endpoint, identifier, success)
                        VALUES (?, ?, ?, ?)")
-            // Do not persist National IDs, PF numbers, or email addresses.
-            ->execute([rl_client_ip(), $endpoint, null, $success ? 1 : 0]);
+            ->execute([rl_client_ip(), $endpoint, $identifier, $success ? 1 : 0]);
     } catch (Exception $e) {
         error_log('Rate limiter record error: ' . $e->getMessage());
     }

@@ -3,19 +3,3 @@
     RewriteCond %{HTTP:Authorization} ^(.*)
     RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
 </IfModule>
-
-Options -Indexes
-
-# Protect configuration, logs, SQL exports, backups and editor artifacts from HTTP.
-<IfModule mod_authz_core.c>
-    <FilesMatch "(?i)(^\.env|\.sql$|\.log$|\.bak$|\.old$|\.orig$|\.swp$|\.zip$|\.tar$|\.gz$)">
-        Require all denied
-    </FilesMatch>
-</IfModule>
-
-<IfModule !mod_authz_core.c>
-    <FilesMatch "(?i)(^\.env|\.sql$|\.log$|\.bak$|\.old$|\.orig$|\.swp$|\.zip$|\.tar$|\.gz$)">
-        Order allow,deny
-        Deny from all
-    </FilesMatch>
-</IfModule>

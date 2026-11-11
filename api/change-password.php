@@ -1,50 +1,69 @@
 <?php
-require_once __DIR__ . '/../session-manager.php';
-require_once __DIR__ . '/../audit-logger.php';
+require_once '../session-manager.php';
+require_once '../audit-logger.php';
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    json_response(false, null, 'Method not allowed', 405);
-}
 $session = requireAuth();
-$isStudent = $session['user_type'] === 'student';
-$userId = $isStudent ? (int)$session['user_id'] : (int)$session['admin_id'];
-$table = $isStudent ? 'users' : 'admin_users';
-if ($userId <= 0) json_response(false, null, 'Unauthorized', 401);
 
-$currentPassword = (string)($_POST['current_password'] ?? '');
-$newPassword = (string)($_POST['new_password'] ?? '');
-$confirmPassword = (string)($_POST['confirm_password'] ?? '');
-if ($currentPassword === '' || strlen($newPassword) < 8 || $newPassword !== $confirmPassword
-    || $newPassword === $currentPassword) {
-    json_response(false, null, 'Provide your current password and a different matching password of at least 8 characters', 422);
+$isStudent   = isset($session['user_id']);
+$userId      = $isStudent ? $session['user_id'] : $session['admin_id'];
+$table       = $isStudent ? 'users' : 'admin_users';
+
+if (!$userId) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
 }
 
-try {
-    $stmt = $pdo->prepare("SELECT password_hash FROM {$table} WHERE id = ?");
-    $stmt->execute([$userId]);
-    $storedHash = $stmt->fetchColumn();
-    if (!is_string($storedHash) || !password_verify($currentPassword, $storedHash)) {
-        json_response(false, null, 'Current password is incorrect', 401);
-    }
-    $pdo->beginTransaction();
-    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
-    $pdo->prepare("UPDATE {$table} SET password_hash = ?, updated_at = NOW() WHERE id = ?")
-        ->execute([$hash, $userId]);
-    if ($isStudent) {
-        $pdo->prepare('UPDATE sessions SET is_valid = 0 WHERE user_id = ? AND session_id <> ?')
-            ->execute([$userId, $session['session_id']]);
-    } else {
-        $pdo->prepare('UPDATE sessions SET is_valid = 0 WHERE admin_id = ? AND session_id <> ?')
-            ->execute([$userId, $session['session_id']]);
-    }
-    $pdo->commit();
-    if (!$isStudent && isset($GLOBALS['auditLogger'])) {
-        $GLOBALS['auditLogger']->log($session, 'password_changed', 'admin_account', $userId);
-    }
-    json_response(true, ['message' => 'Password changed successfully']);
-} catch (Throwable $e) {
-    if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('Password change failed.');
-    json_response(false, null, 'Password change could not be completed', 500);
+$currentPassword = $_POST['current_password'] ?? '';
+$newPassword     = $_POST['new_password']     ?? '';
+$confirmPassword = $_POST['confirm_password'] ?? '';
+
+$errors = [];
+
+if (empty($currentPassword)) {
+    $errors[] = 'Current password is required.';
 }
-?>
+if (strlen($newPassword) < 8) {
+    $errors[] = 'New password must be at least 8 characters.';
+}
+if ($newPassword !== $confirmPassword) {
+    $errors[] = 'New passwords do not match.';
+}
+if ($newPassword === $currentPassword) {
+    $errors[] = 'New password must be different from your current password.';
+}
+
+if ($errors) {
+    http_response_code(422);
+    echo json_encode(['error' => implode(' ', $errors)]);
+    exit;
+}
+
+// Verify current password against DB
+$stmt = $pdo->prepare("SELECT password FROM {$table} WHERE id = ?");
+$stmt->execute([$userId]);
+$stored = $stmt->fetchColumn();
+
+if (!$stored || !password_verify($currentPassword, $stored)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Current password is incorrect.']);
+    exit;
+}
+
+// Update
+$hashed = password_hash($newPassword, PASSWORD_BCRYPT, ['cost' => 10]);
+$pdo->prepare("UPDATE {$table} SET password = ?, updated_at = NOW() WHERE id = ?")
+    ->execute([$hashed, $userId]);
+
+// Invalidate all other sessions for this user (force re-login on other devices)
+if ($isStudent) {
+    $pdo->prepare("DELETE FROM sessions WHERE user_id = ? AND session_id != ?")
+        ->execute([$userId, $session['session_id']]);
+} else {
+    $pdo->prepare("DELETE FROM sessions WHERE admin_id = ? AND session_id != ?")
+        ->execute([$userId, $session['session_id']]);
+}
+
+logAudit($pdo, 'password_changed', ($isStudent ? 'Student' : 'Admin') . " ID {$userId} changed password");
+
+echo json_encode(['success' => true, 'message' => 'Password changed successfully.']);

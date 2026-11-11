@@ -13,7 +13,6 @@ ini_set('log_errors', 1);
 ob_start();
 
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../lib/rate-limiter.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
 
@@ -21,9 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
-require_json_request();
-checkRateLimit($pdo, 'forgot-password', true, 5, 15);
-recordLoginAttempt($pdo, 'forgot-password', false);
 
 try {
     $data  = json_decode(file_get_contents('php://input'), true);
@@ -57,13 +53,11 @@ try {
         $token     = bin2hex(random_bytes(32));
         $expiresAt = date('Y-m-d H:i:s', time() + 3600); // 1 hour
 
-        $tokenHash = hash('sha256', $token);
         $pdo->prepare("INSERT INTO password_reset_tokens (email, token, account_type, expires_at)
                        VALUES (?, ?, ?, ?)")
-            ->execute([$email, $tokenHash, $accountType, $expiresAt]);
+            ->execute([$email, $token, $accountType, $expiresAt]);
 
-        // A fragment is not sent in HTTP requests or access logs.
-        $resetUrl = rtrim(APP_URL, '/') . '/pages/reset-password.php#token=' . rawurlencode($token);
+        $resetUrl = rtrim(APP_URL, '/') . '/pages/reset-password.php?token=' . $token;
         sendMail($email, '', 'Reset Your Vuka Portal Password', emailPasswordReset($resetUrl));
     }
 

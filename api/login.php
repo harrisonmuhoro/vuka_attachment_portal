@@ -10,14 +10,12 @@ ini_set('log_errors', 1);
 ob_start();
 
 require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/rate-limiter.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
     json_response(false, null, 'Method not allowed');
 }
-require_json_request();
 
 // Block brute-force attempts before doing any credential work.
 checkRateLimit($pdo, 'login');
@@ -51,7 +49,7 @@ try {
     // --- 1. Check if user is a STUDENT (National ID: 6-8 digits) ---
     if (preg_match('/^\d{6,8}$/', $identifier)) {
         $stmt = $pdo->prepare("
-            SELECT id, full_name, email, national_id, password_hash, verified, status, registration_date, created_at
+            SELECT id, full_name, email, national_id, password_hash, verified, registration_date, created_at
             FROM users 
             WHERE national_id = ?
         ");
@@ -59,21 +57,15 @@ try {
         $user = $stmt->fetch();
 
         if ($user && verify_password($password, $user['password_hash'])) {
-            if ($user['status'] !== 'active') {
-                recordLoginAttempt($pdo, 'login', false);
-                ob_end_clean();
-                json_response(false, null, 'Invalid credentials', 401);
-            }
             // Student Login Success
             
             // Check verification
             if (!$user['verified']) {
-                recordLoginAttempt($pdo, 'login', false);
                 ob_end_clean();
                 json_response(false, [
                     'needsVerification' => true,
                     'national_id' => $user['national_id']
-                ], 'Account not verified. Please verify your email first.', 401);
+                ], 'Account not verified. Please verify your email first.');
             }
 
             // Check submission status
@@ -81,18 +73,19 @@ try {
             $stmt->execute([$user['id']]);
             $alreadySubmitted = $stmt->rowCount() > 0;
             
-            $roleStmt = $pdo->prepare("SELECT id FROM roles WHERE role_name = 'student' LIMIT 1");
-            $roleStmt->execute();
-            $studentRoleId = (int)$roleStmt->fetchColumn();
-            if ($studentRoleId <= 0) {
-                throw new RuntimeException('Student role is unavailable');
-            }
-            $sessionResult = $GLOBALS['sessionManager']->createSession($user['id'], 'student', $studentRoleId);
-            if (empty($sessionResult['success'])) {
-                throw new RuntimeException('Session could not be created');
-            }
-            $sessionToken = $sessionResult['session_id'];
-            $pdo->prepare('UPDATE users SET last_login = NOW() WHERE id = ?')->execute([$user['id']]);
+            // Generate Token
+            $sessionToken = bin2hex(random_bytes(32));
+            
+            // Store session
+             $expiresAt = date('Y-m-d H:i:s', time() + 28800); // 8 hours
+            $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO sessions (session_id, user_id, user_type, role_id, ip_address, user_agent, expires_at, is_valid)
+                VALUES (?, ?, 'student', 4, ?, ?, ?, 1)
+            ");
+            $stmt->execute([$sessionToken, $user['id'], $ipAddress, $userAgent, $expiresAt]);
 
             // Determine redirect based on role (Student is role_id 4)
             $redirect = 'pages/student_dashboard.php';
@@ -112,8 +105,7 @@ try {
                     'registration_date' => $user['registration_date'],
                     'alreadySubmitted' => $alreadySubmitted,
                 ],
-                'token' => $sessionToken,
-                'csrf_token' => $sessionResult['csrf_token']
+                'token' => $sessionToken
             ]);
         }
     }
@@ -126,18 +118,22 @@ try {
     $admin = $stmt->fetch();
 
     if ($admin && verify_password($password, $admin['password_hash'])) {
-        if ($admin['status'] !== 'active') {
-            recordLoginAttempt($pdo, 'login', false);
-            ob_end_clean();
-            json_response(false, null, 'Invalid credentials', 401);
-        }
         // Admin Login Success
+        $sessionToken = bin2hex(random_bytes(32));
+        
+         // Store session for admin
+        $expiresAt = date('Y-m-d H:i:s', time() + 28800); // 8 hours
+        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        
         $roleId = $admin['role_id']; // 1=Admin, 2=HR, 3=Supervisor
-        $sessionResult = $GLOBALS['sessionManager']->createSession($admin['id'], 'admin', $roleId);
-        if (empty($sessionResult['success'])) {
-            throw new RuntimeException('Session could not be created');
-        }
-        $sessionToken = $sessionResult['session_id'];
+        $userType = 'admin';
+        
+        $stmt = $pdo->prepare("
+            INSERT INTO sessions (session_id, user_id, admin_id, user_type, role_id, ip_address, user_agent, expires_at, is_valid)
+            VALUES (?, NULL, ?, 'admin', ?, ?, ?, ?, 1)
+        ");
+        $stmt->execute([$sessionToken, $admin['id'], $roleId, $ipAddress, $userAgent, $expiresAt]);
 
         // Update last_login
         $pdo->prepare("UPDATE admin_users SET last_login = NOW() WHERE id = ?")->execute([$admin['id']]);
@@ -159,19 +155,18 @@ try {
             'full_name' => $admin['full_name'] ?? $identifier,
             'pf_number' => $admin['pf_number'],
             'department' => $admin['department'],
-                'token' => $sessionToken,
-                'csrf_token' => $sessionResult['csrf_token']
+            'token' => $sessionToken
         ]);
     }
 
     // --- 3. Login Failed ---
     recordLoginAttempt($pdo, 'login', false, $identifier);
     ob_end_clean();
-    json_response(false, null, 'Invalid credentials', 401);
+    json_response(false, null, 'Invalid credentials');
 
 } catch (Exception $e) {
-    error_log('Login request failed.');
+    error_log("Login error: " . $e->getMessage());
     ob_end_clean();
-    json_response(false, null, 'Login failed');
+    json_response(false, null, 'Login failed: ' . $e->getMessage());
 }
 

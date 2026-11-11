@@ -20,8 +20,17 @@ async function loadProfile() {
 
     const p = data.profile;
 
-    // Fetch images with Authorization headers so session tokens never enter URLs.
-    if (p.profile_photo) loadPrivateProfilePhoto();
+    // Photo
+    if (p.profile_photo) {
+        const token = sessionStorage.getItem('userToken') || sessionStorage.getItem('adminToken');
+        const preview = document.getElementById('profilePhotoPreview');
+        if(preview) {
+            preview.src = '/attachment/api/serve-profile-photo.php?token=' + token + '&t=' + Date.now();
+        }
+        document.querySelectorAll('.nav-avatar').forEach(el => {
+            el.src = '/attachment/api/serve-profile-photo.php?token=' + token + '&t=' + Date.now();
+        });
+    }
 
     // Display name and role
     const nameEl = document.getElementById('profileDisplayName');
@@ -56,22 +65,6 @@ async function loadProfile() {
         if(step1) step1.classList.add('d-none');
         if(step2) step2.classList.remove('d-none');
     }
-}
-
-async function loadPrivateProfilePhoto() {
-    const token = sessionStorage.getItem('userToken') || sessionStorage.getItem('adminToken');
-    if (!token) return;
-    const apiPath = window.location.pathname.includes('/pages/') ? '../api' : 'api';
-    try {
-        const response = await fetch(`${apiPath}/serve-profile-photo.php`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return;
-        const blobUrl = URL.createObjectURL(await response.blob());
-        [document.getElementById('profilePhotoPreview'), ...document.querySelectorAll('.nav-avatar')]
-            .filter(Boolean)
-            .forEach(el => { if (el.dataset.privatePhotoUrl) URL.revokeObjectURL(el.dataset.privatePhotoUrl); el.dataset.privatePhotoUrl = blobUrl; el.src = blobUrl; });
-    } catch (e) { console.warn('Profile image could not be loaded.'); }
 }
 
 

@@ -28,7 +28,6 @@ function emailButton(string $url, string $label): string {
 
 /** Password reset link email. */
 function emailPasswordReset(string $resetUrl): string {
-    $resetUrl = htmlspecialchars($resetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $inner = "
       <p>Hello,</p>
       <p>We received a request to reset the password for your Vuka Portal account.</p>
@@ -38,16 +37,8 @@ function emailPasswordReset(string $resetUrl): string {
     return emailShell($inner);
 }
 
-/** Account verification code email. */
-function emailVerificationCode(string $code): string {
-    $code = htmlspecialchars($code, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    return emailShell("<p>Hello,</p><p>Your Vuka Portal verification code is:</p><p style='font-size:24px;font-weight:700;letter-spacing:5px'>{$code}</p><p>This code expires in 15 minutes and can be used once.</p>");
-}
-
 /** Application status-change email. */
 function emailStatusChanged(string $studentName, string $status, string $department): string {
-    $studentName = htmlspecialchars($studentName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $department = htmlspecialchars($department, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $messages = [
         'accepted'  => "Congratulations! Your application has been <strong>accepted</strong> by the {$department} department.",
         'rejected'  => "We regret to inform you that your application to {$department} was not successful at this time.",

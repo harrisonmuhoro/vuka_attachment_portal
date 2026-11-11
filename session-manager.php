@@ -16,15 +16,6 @@ require_once __DIR__ . '/config/config.php';
 // Native PHP session is only a fallback transport now (Bearer token is primary).
 // Start it defensively so including this file after output doesn't emit warnings.
 if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-    $requestIsSecure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-        || (($_SERVER['SERVER_PORT'] ?? null) == 443);
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'secure' => $requestIsSecure,
-        'httponly' => true,
-        'samesite' => 'Lax',
-    ]);
     session_start();
 }
 
@@ -60,13 +51,7 @@ class SessionManager {
                 throw new Exception('Invalid user type');
             }
             
-            // Rotate the PHP session ID after authentication to prevent fixation.
-            if (session_status() === PHP_SESSION_ACTIVE) {
-                session_regenerate_id(true);
-                $_SESSION = [];
-            }
-
-            // Generate secure database session token.
+            // Generate secure session ID
             $sessionId = bin2hex(random_bytes(32));
             $ipAddress = $this->getClientIP();
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -111,18 +96,17 @@ class SessionManager {
             }
             
             // Store in secure cookie and session
-            $secure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-                || (($_SERVER['SERVER_PORT'] ?? null) == 443);
-            setcookie('session_id', $sessionId, [
-                'expires' => time() + self::SESSION_TIMEOUT,
-                'path' => '/',
-                'secure' => $secure,
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
+            setcookie(
+                'session_id',
+                $sessionId,
+                time() + self::SESSION_TIMEOUT,
+                '/',
+                '',
+                true, // Secure (HTTPS only)
+                true  // HttpOnly (prevents JavaScript access)
+            );
             
             $_SESSION['session_id'] = $sessionId;
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
             $_SESSION['user_type'] = $userType;
             $_SESSION['user_id'] = $userType === 'student' ? $user_or_admin_id : null;
             $_SESSION['admin_id'] = $userType === 'admin' ? $user_or_admin_id : null;
@@ -130,13 +114,12 @@ class SessionManager {
             return [
                 'success' => true,
                 'session_id' => $sessionId,
-                'csrf_token' => $_SESSION['csrf_token'],
                 'user_type' => $userType,
                 'expires_in' => self::SESSION_TIMEOUT
             ];
             
         } catch (Exception $e) {
-            error_log('Session creation failed.');
+            error_log("Session creation error: " . $e->getMessage());
             return ['success' => false, 'error' => 'Session creation failed'];
         }
     }
@@ -160,6 +143,10 @@ class SessionManager {
                     ?? null;
             }
 
+            error_log("SessionManager validateSession - Received Token: " . ($sessionId ? $sessionId : "NONE") . "\n", 3, __DIR__ . "/debug.log");
+            error_log("SessionManager validateSession - HTTP_AUTHORIZATION: " . ($_SERVER['HTTP_AUTHORIZATION'] ?? "NONE") . "\n", 3, __DIR__ . "/debug.log");
+
+
             if (!$sessionId) {
                 return false;
             }
@@ -168,14 +155,14 @@ class SessionManager {
             // used for isolation; `department_name` comes from the departments FK.
             $stmt = $this->pdo->prepare("
                 SELECT s.*,
-                       r.id as verified_role_id, r.role_name, r.level as role_level,
-                       u.id as user_id, u.full_name as user_name, u.email as user_email, u.status as user_status, u.verified as user_verified,
+                       r.role_name, r.level as role_level,
+                       u.id as user_id, u.full_name as user_name, u.email as user_email, u.status as user_status,
                        a.id as admin_id, a.pf_number, a.full_name as admin_name, a.email as admin_email,
                        a.status as admin_status, a.department, a.department_id, d.name as department_name
                 FROM sessions s
                 LEFT JOIN users u ON s.user_id = u.id
                 LEFT JOIN admin_users a ON s.admin_id = a.id
-                LEFT JOIN roles r ON r.id = CASE WHEN s.user_type = 'admin' THEN a.role_id ELSE s.role_id END
+                LEFT JOIN roles r ON s.role_id = r.id
                 LEFT JOIN departments d ON a.department_id = d.id
                 WHERE s.session_id = ? AND s.is_valid = 1 AND s.expires_at > NOW()
                 LIMIT 1
@@ -185,11 +172,9 @@ class SessionManager {
             $session = $stmt->fetch();
             
             if (!$session) {
-                error_log('Session validation rejected an invalid or expired session.');
+                error_log("Session not found in DB or expired. Token: $sessionId\n", 3, __DIR__ . "/debug.log");
                 return false;
             }
-            $session['role_id'] = (int)$session['verified_role_id'];
-            unset($session['verified_role_id']);
 
             // Log IP/UA anomalies for audit, but do not hard-reject:
             // the 256-bit random session token is the primary guard, and strict
@@ -198,14 +183,14 @@ class SessionManager {
 
             // CRITICAL: Verify account status
             if ($session['user_type'] === 'student') {
-                if ($session['user_status'] !== 'active' || (int)$session['user_verified'] !== 1) {
-                    error_log('Session validation rejected an inactive or unverified applicant account.');
+                if ($session['user_status'] !== 'active') {
+                    error_log("Session validation failed: Student status is not active (" . $session['user_status'] . ")\n", 3, __DIR__ . "/debug.log");
                     return false;
                 }
             } else {
                 // Admin account must be active
                 if ($session['admin_status'] !== 'active') {
-                    error_log('Session validation rejected an inactive administrator account.');
+                    error_log("Session validation failed: Admin status is not active (" . $session['admin_status'] . ")\n", 3, __DIR__ . "/debug.log");
                     return false;
                 }
             }
@@ -224,7 +209,8 @@ class SessionManager {
             return $session;
             
         } catch (Exception $e) {
-            error_log('Session validation failed due to an internal error.');
+            error_log("Session validation error: " . $e->getMessage());
+            error_log("Exception: " . $e->getMessage() . "\n", 3, __DIR__ . "/debug.log");
             return false;
         }
     }
@@ -373,24 +359,13 @@ class SessionManager {
             $result = $stmt->execute([$sessionId]);
             
             // Clear cookies and session
-            $secure = (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-                || (($_SERVER['SERVER_PORT'] ?? null) == 443);
-            setcookie('session_id', '', [
-                'expires' => time() - 3600,
-                'path' => '/',
-                'secure' => $secure,
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
-            if (session_status() === PHP_SESSION_ACTIVE) {
-                $_SESSION = [];
-                session_destroy();
-            }
+            setcookie('session_id', '', time() - 3600, '/');
+            session_destroy();
             
             return $result;
             
         } catch (Exception $e) {
-            error_log('Session invalidation failed.');
+            error_log("Session invalidation error: " . $e->getMessage());
             return false;
         }
     }
@@ -429,10 +404,10 @@ class SessionManager {
 
         // Log-only anomaly detection (see validateSession for rationale).
         if ($session['ip_address'] !== $currentIP) {
-            error_log('Session request IP changed since authentication.');
+            error_log("Session IP change: {$session['ip_address']} -> {$currentIP} (session {$session['session_id']})");
         }
         if ($session['user_agent'] !== $currentUA) {
-            error_log('Session request user agent changed since authentication.');
+            error_log("Session UA change detected (session {$session['session_id']})");
         }
 
         return true;
@@ -453,7 +428,7 @@ class SessionManager {
             ");
             return $stmt->execute([$sessionId]);
         } catch (Exception $e) {
-            error_log('Session activity update failed.');
+            error_log("Update last activity error: " . $e->getMessage());
             return false;
         }
     }
@@ -521,23 +496,13 @@ function requireAuth($requiredRole = null, $allowMultipleRoles = false) {
             header('Content-Type: application/json; charset=utf-8');
             http_response_code(401);
         }
-        json_response(false, ['authenticated' => false, 'redirect' => '/index.php'], 'Unauthorized: Invalid or expired session', 401);
-    }
-
-    // Browser cookies are ambient credentials. Require a session-bound CSRF
-    // token for every state-changing cookie-authenticated request. Bearer-token
-    // API clients are not subject to cookie CSRF.
-    $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
-    if (!in_array($method, ['GET', 'HEAD', 'OPTIONS'], true) && !get_bearer_token()) {
-        $csrfToken = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['_csrf_token'] ?? '';
-        if (!$sessionManager->verifyCSRFToken((string)$csrfToken)) {
-            if (!headers_sent()) {
-                http_response_code(403);
-                header('Content-Type: application/json; charset=utf-8');
-            }
-            echo json_encode(['success' => false, 'message' => 'CSRF validation failed']);
-            exit;
-        }
+        echo json_encode([
+            'success' => false,
+            'error' => 'Unauthorized: Invalid or expired session',
+            'authenticated' => false,
+            'redirect' => '/index.php'
+        ]);
+        exit;
     }
 
     // Check role if specified (accepts a single role or an array of allowed roles)
@@ -549,7 +514,12 @@ function requireAuth($requiredRole = null, $allowMultipleRoles = false) {
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(403);
             }
-            json_response(false, ['user_role' => $session['role_name']], 'Forbidden: Insufficient permissions', 403);
+            echo json_encode([
+                'success' => false,
+                'error' => 'Forbidden: Insufficient permissions',
+                'user_role' => $session['role_name']
+            ]);
+            exit;
         }
     }
 

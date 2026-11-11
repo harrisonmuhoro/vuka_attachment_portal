@@ -24,8 +24,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
     $sessionManager = $GLOBALS['sessionManager'];
-    $session = requireAuth();
-    $sessionManager->invalidateSession($session['session_id']);
+    // Bearer clients have no cookie; invalidateSession() only falls back to cookie/PHP-session,
+    // so pass the Bearer token explicitly when present.
+    $sessionManager->invalidateSession(get_bearer_token());
     
     ob_end_clean();
     json_response(true, ['message' => 'Logged out successfully']);
