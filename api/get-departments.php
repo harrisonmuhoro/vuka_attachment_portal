@@ -14,6 +14,7 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -27,7 +28,9 @@ try {
     if (ob_get_length() !== false) { ob_end_clean(); }
     $session = requireAnyAdmin();
     
-    // Get all departments with admin count
+    $scope = Authorization::requireDepartmentScope($session);
+    // Supervisors must not enumerate other departments; system roles retain operational visibility.
+    $scopeWhere = $scope === 'ALL' ? '' : ' WHERE d.name = ? ';
     $stmt = $pdo->prepare("
         SELECT 
             d.id,
@@ -38,11 +41,12 @@ try {
         FROM departments d
         LEFT JOIN admin_users a ON d.id = a.department_id
         LEFT JOIN roles r ON a.role_id = r.id
+        {$scopeWhere}
         GROUP BY d.id
         ORDER BY d.name
     ");
     
-    $stmt->execute();
+    $scope === 'ALL' ? $stmt->execute() : $stmt->execute([$scope]);
     $departments = $stmt->fetchAll();
     
     ob_end_clean();

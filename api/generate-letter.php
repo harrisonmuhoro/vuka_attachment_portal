@@ -58,6 +58,9 @@ if (!in_array($type, ['offer', 'rejection', 'deployment'], true)) {
 try {
     // Fetch submission + vacancy title. submissions already holds the
     // applicant details directly — no users table join needed.
+    $scopeClause = $scope === 'ALL' ? '' : ' AND s.department_applied = ?';
+    $params = [$submissionId];
+    if ($scopeClause !== '') $params[] = $scope;
     $stmt = $pdo->prepare("
         SELECT s.id, s.national_id, s.full_name, s.email, s.course_applying,
                s.institution_name, s.department_applied, s.application_type,
@@ -65,10 +68,10 @@ try {
                v.title AS vacancy_title
         FROM submissions s
         LEFT JOIN vacancies v ON s.vacancy_id = v.id
-        WHERE s.id = ?
+        WHERE s.id = ? {$scopeClause}
         LIMIT 1
     ");
-    $stmt->execute([$submissionId]);
+    $stmt->execute($params);
     $data = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$data) {
@@ -79,13 +82,6 @@ try {
     }
 
     // Department scoping — non-ALL scopes are locked to their own department.
-    if ($scope !== 'ALL' && $data['department_applied'] !== $scope) {
-        http_response_code(403);
-        header('Content-Type: text/plain; charset=utf-8');
-        echo 'Forbidden: submission is outside your department';
-        exit;
-    }
-
     buildPDF($data, $type, $session);
     exit;
 

@@ -2,7 +2,7 @@
 
 **Branch:** `feature-priority-remediation`
 **Base:** `9b0f9c2e3bdfdc36b40e52200eea1ce39b1fd9c6` (`origin/main`)
-**Status:** implemented locally; not merged or deployed.
+**Status:** merged into the remote `feature` branch; not merged into `main` or deployed.
 
 ## Delivered
 

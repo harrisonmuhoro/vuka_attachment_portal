@@ -73,7 +73,7 @@ jobs:
         shell: bash
         run: find assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
 
-      - name: Run isolated HTTP security regression suite
+      - name: Run Phase 1, 1.1 and Phase 2 HTTP authorization regression suite
         run: php tests/security/phase1_security_tests.php
 
       - name: Run disposable MySQL migration regression suite

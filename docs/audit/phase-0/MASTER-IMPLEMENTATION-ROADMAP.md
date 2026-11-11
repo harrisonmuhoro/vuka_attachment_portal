@@ -75,6 +75,8 @@ flowchart TD
 
 ## Phase 2: RBAC and Data Isolation (Priority: P0 — Critical)
 
+**Implementation status:** Phase 2 authorization remediation is implemented on `feature/phase-2-rbac-data-isolation` and awaits review/merge. See [`docs/implementation/phase-2/IMPLEMENTATION-REPORT.md`](../../implementation/phase-2/IMPLEMENTATION-REPORT.md). The remaining roadmap bullets below are historical findings and should not be read as current defects without re-auditing the branch.
+
 * **1. Objectives:**
   Enforce strict server-side authorization guards across every API endpoint and guarantee impenetrable horizontal department data isolation.
 * **2. Existing Problems Addressed:**
