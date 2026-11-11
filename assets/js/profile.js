@@ -166,10 +166,6 @@ async function changePassword() {
         showToast('New passwords do not match', 'danger');
         return;
     }
-    if (Array.from(newPwd).length < 12 || new TextEncoder().encode(newPwd).length > 72) {
-        showToast('Password must be at least 12 characters and no more than 72 bytes', 'danger');
-        return;
-    }
 
     const body = new FormData();
     body.append('current_password', current);

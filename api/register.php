@@ -8,7 +8,6 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../lib/rate-limiter.php';
-require_once __DIR__ . '/../lib/password-policy.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
 
@@ -54,12 +53,12 @@ try {
     $password = (string)($data['password'] ?? '');
     $registrationDate = trim((string)($data['registration_date'] ?? date('Y-m-d')));
     if ($fullName === '' || !preg_match('/^\d{6,9}$/', $nationalId)
-        || !filter_var($email, FILTER_VALIDATE_EMAIL) || PasswordPolicy::validationError($password) !== null
+        || !filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 8
         || mb_strlen($fullName) > 150
         || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $registrationDate)
         || strtotime($registrationDate) === false) {
         ob_end_clean();
-        json_response(false, null, 'Please provide valid registration details and a password of at least 12 characters.', 422);
+        json_response(false, null, 'Please provide valid registration details (password must be at least 8 characters)', 422);
     }
     $allowedDomains = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'ymail.com', 'aol.com', 'icloud.com'];
     $emailDomain = strtolower(substr(strrchr($email, '@'), 1));
@@ -71,7 +70,7 @@ try {
     $code = (string)random_int(100000, 999999);
     $codeHash = password_hash($code, PASSWORD_DEFAULT);
     $stmt = $pdo->prepare('INSERT INTO users (full_name, national_id, email, password_hash, registration_date, verification_code, verification_sent_at) VALUES (?, ?, ?, ?, ?, ?, NOW())');
-    $stmt->execute([$fullName, $nationalId, $email, PasswordPolicy::hash($password), $registrationDate, $codeHash]);
+    $stmt->execute([$fullName, $nationalId, $email, password_hash($password, PASSWORD_DEFAULT), $registrationDate, $codeHash]);
     $userId = (int)$pdo->lastInsertId();
     sendMail($email, $fullName, 'Verify Your Vuka Portal Account', emailVerificationCode($code));
 

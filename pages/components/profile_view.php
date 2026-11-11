@@ -116,7 +116,7 @@
       </div>
       <div class="col-12">
         <label class="form-label">New Password</label>
-        <input type="password" class="form-control" id="fieldNewPwd" minlength="12" maxlength="72" autocomplete="new-password">
+        <input type="password" class="form-control" id="fieldNewPwd">
         <div id="pwdStrengthBar" class="progress mt-1" style="height:4px">
           <div id="pwdStrengthFill" class="progress-bar" style="width:0%"></div>
         </div>
@@ -124,7 +124,7 @@
       </div>
       <div class="col-12">
         <label class="form-label">Confirm New Password</label>
-        <input type="password" class="form-control" id="fieldConfirmPwd" minlength="12" maxlength="72" autocomplete="new-password">
+        <input type="password" class="form-control" id="fieldConfirmPwd">
       </div>
       <div class="col-12">
         <button class="btn btn-primary" onclick="changePassword()">

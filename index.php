@@ -908,7 +908,7 @@
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
                                         <div class="password-wrapper flex-grow-1">
-                                            <input type="password" class="form-control" id="regPassword" placeholder="Minimum 12 characters" required minlength="12" maxlength="72">
+                                            <input type="password" class="form-control" id="regPassword" placeholder="Minimum 8 characters" required minlength="8">
                                             <button type="button" class="password-toggle" data-target="regPassword"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
@@ -918,7 +918,7 @@
                                     <div class="input-group">
                                         <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
                                         <div class="password-wrapper flex-grow-1">
-                                            <input type="password" class="form-control" id="regConfirmPassword" placeholder="Confirm your password" required minlength="12" maxlength="72">
+                                            <input type="password" class="form-control" id="regConfirmPassword" placeholder="Confirm your password" required minlength="6">
                                             <button type="button" class="password-toggle" data-target="regConfirmPassword"><i class="fas fa-eye"></i></button>
                                         </div>
                                     </div>
