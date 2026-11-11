@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
+require_once __DIR__ . '/../lib/password-policy.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     json_response(false, null, 'Method not allowed', 405);
@@ -14,9 +15,9 @@ if ($userId <= 0) json_response(false, null, 'Unauthorized', 401);
 $currentPassword = (string)($_POST['current_password'] ?? '');
 $newPassword = (string)($_POST['new_password'] ?? '');
 $confirmPassword = (string)($_POST['confirm_password'] ?? '');
-if ($currentPassword === '' || strlen($newPassword) < 8 || $newPassword !== $confirmPassword
+if ($currentPassword === '' || PasswordPolicy::validationError($newPassword) !== null || $newPassword !== $confirmPassword
     || $newPassword === $currentPassword) {
-    json_response(false, null, 'Provide your current password and a different matching password of at least 8 characters', 422);
+    json_response(false, null, 'Provide your current password and a different matching password of at least 12 characters.', 422);
 }
 
 try {
@@ -27,7 +28,7 @@ try {
         json_response(false, null, 'Current password is incorrect', 401);
     }
     $pdo->beginTransaction();
-    $hash = password_hash($newPassword, PASSWORD_DEFAULT);
+    $hash = PasswordPolicy::hash($newPassword);
     $pdo->prepare("UPDATE {$table} SET password_hash = ?, updated_at = NOW() WHERE id = ?")
         ->execute([$hash, $userId]);
     if ($isStudent) {

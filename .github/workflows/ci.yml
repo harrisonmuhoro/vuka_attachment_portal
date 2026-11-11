@@ -1,0 +1,80 @@
+name: Security and regression checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - main
+      - feature
+      - 'feature-*'
+      - 'feature/**'
+
+permissions:
+  contents: read
+
+jobs:
+  security-regression:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: vuka_ci_test_password
+          MYSQL_DATABASE: vuka_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -uroot -pvuka_ci_test_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: vuka_ci
+      DB_USER: root
+      DB_PASS: vuka_ci_test_password
+      APP_URL: http://127.0.0.1
+      SMTP_HOST: ''
+      SMTP_USER: ''
+      SMTP_PASS: ''
+      SMTP_FROM: ''
+      VUKA_LOG_DIR: /tmp/vuka-ci-logs
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, fileinfo, mbstring, pdo_mysql, pdo_sqlite, sqlite3
+          tools: none
+          coverage: none
+          fail-fast: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Report runtime versions
+        run: |
+          php --version
+          node --version
+          php -m
+
+      - name: Check PHP syntax
+        shell: bash
+        run: find . -type f -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: find assets/js -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Run isolated HTTP security regression suite
+        run: php tests/security/phase1_security_tests.php
+
+      - name: Run disposable MySQL migration regression suite
+        run: php tests/security/phase1_migration_test.php

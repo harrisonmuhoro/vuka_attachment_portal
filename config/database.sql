@@ -55,7 +55,7 @@ CREATE TABLE `users` (
     `phone` VARCHAR(30) NULL,
     `registration_date` DATE NOT NULL,
     `verified` TINYINT(1) NOT NULL DEFAULT 0,
-    `verification_code` VARCHAR(10) NULL,
+    `verification_code` VARCHAR(255) NULL,
     `verification_sent_at` DATETIME NULL,
     `status` ENUM('active', 'inactive', 'suspended', 'pending') NOT NULL DEFAULT 'active',
     `profile_photo` VARCHAR(255) NULL,

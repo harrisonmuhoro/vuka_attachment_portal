@@ -5,6 +5,7 @@ if (PHP_SAPI !== 'cli') {
     exit;
 }
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../lib/password-policy.php';
 if ($pdo->getAttribute(PDO::ATTR_DRIVER_NAME) !== 'mysql') {
     fwrite(STDERR, "Administrator provisioning requires MySQL/MariaDB.\n");
     exit(2);
@@ -22,7 +23,7 @@ $password = $read('Initial password (12 or more characters)');
 $confirm = $read('Confirm initial password');
 if (!preg_match('/^\d{6,9}$/', $nationalId) || $pfNumber === '' || strlen($pfNumber) > 50
     || $fullName === '' || mb_strlen($fullName) > 150 || !filter_var($email, FILTER_VALIDATE_EMAIL)
-    || strlen($password) < 12 || $password !== $confirm) {
+    || PasswordPolicy::validationError($password) !== null || $password !== $confirm) {
     fwrite(STDERR, "Input validation failed; no account was created.\n");
     exit(2);
 }
@@ -43,7 +44,7 @@ try {
     $insert = $pdo->prepare("INSERT INTO admin_users
         (national_id, pf_number, full_name, email, password_hash, department, department_id, role_id, status)
         VALUES (?, ?, ?, ?, ?, 'ALL', NULL, ?, 'active')");
-    $insert->execute([$nationalId, $pfNumber, $fullName, $email, password_hash($password, PASSWORD_DEFAULT), $roleId]);
+    $insert->execute([$nationalId, $pfNumber, $fullName, $email, PasswordPolicy::hash($password), $roleId]);
     $pdo->commit();
     fwrite(STDOUT, "Super Admin provisioned. Store the password in an approved password manager.\n");
 } catch (Throwable $e) {
