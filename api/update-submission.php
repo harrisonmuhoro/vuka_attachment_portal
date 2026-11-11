@@ -1,10 +1,5 @@
 <?php
-/**
- * Update Submission Status Endpoint
- * POST /api/update-submission.php
- * 
- * Used by admins to change submission status and add review notes
- */
+/** Administrative review endpoint with server-derived identity and department scope. */
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -17,181 +12,149 @@ require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
 require_once __DIR__ . '/../lib/notifications.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     ob_end_clean();
-    json_response(false, null, 'Method not allowed');
+    json_response(false, null, 'Method not allowed', 405);
 }
+require_json_request();
 
 try {
+    // Reject unauthenticated and applicant requests before parsing or querying target data.
+    $session = requireAnyAdmin();
     $data = json_decode(file_get_contents('php://input'), true);
-    
-    if ($data === null) {
+    if (!is_array($data)) {
         ob_end_clean();
-        json_response(false, null, 'Invalid JSON input');
+        json_response(false, null, 'Invalid JSON input', 400);
     }
-    
-    // Support both frontend field name conventions
-    $submissionId = $data['submission_id'] ?? $data['submissionId'] ?? null;
-    $newStatus = $data['status'] ?? null;
-    $rejectionReason = $data['rejection_reason'] ?? $data['rejectionReason'] ?? '';
-    $reviewNotes = $data['review_notes'] ?? $data['reviewNotes'] ?? '';
-    $pfNumber = $data['pf_number'] ?? $data['pfNumber'] ?? '';
-    $department = $data['department'] ?? '';
-    $assignedRole = $data['assigned_role'] ?? $data['assignedRole'] ?? null;
-    $assignedStation = $data['assigned_station'] ?? $data['assignedStation'] ?? null;
-    
-    if (empty($submissionId)) {
+    $submissionId = filter_var($data['submission_id'] ?? $data['submissionId'] ?? null, FILTER_VALIDATE_INT);
+    if (!$submissionId || $submissionId <= 0) {
         ob_end_clean();
-        json_response(false, null, 'Missing submission ID');
+        json_response(false, null, 'A valid submission ID is required', 422);
     }
-    
-    // If only saving review notes (no status change)
-    if (empty($newStatus) && !empty($reviewNotes)) {
-        // Get admin info from token if pfNumber missing
-        if (empty($pfNumber)) {
-            $session = $GLOBALS['sessionManager']->validateSession();
-            if ($session && $GLOBALS['sessionManager']->isAdminTier($session)) {
-                $pfNumber = $session['pf_number'];
-                $department = $session['department'];
-            }
-        }
 
-        // Add review note to history
-        $stmt = $pdo->prepare("
-            INSERT INTO review_history (submission_id, reviewer_pf, reviewer_department, status, notes)
-            VALUES (?, ?, ?, 'note', ?)
-        ");
-        $stmt->execute([$submissionId, $pfNumber, $department, $reviewNotes]);
-        
+    $notesProvided = array_key_exists('review_notes', $data) || array_key_exists('reviewNotes', $data);
+    $reviewNotes = trim((string)($data['review_notes'] ?? $data['reviewNotes'] ?? ''));
+    $requestedStatus = trim((string)($data['status'] ?? ''));
+    $rejectionReason = trim((string)($data['rejection_reason'] ?? $data['rejectionReason'] ?? ''));
+    $assignedRole = isset($data['assigned_role']) ? trim((string)$data['assigned_role']) : null;
+    $assignedStation = isset($data['assigned_station']) ? trim((string)$data['assigned_station']) : null;
+    if (strlen($reviewNotes) > 4000 || strlen($rejectionReason) > 1000
+        || ($assignedRole !== null && strlen($assignedRole) > 150)
+        || ($assignedStation !== null && strlen($assignedStation) > 150)) {
         ob_end_clean();
-        json_response(true, ['message' => 'Review notes saved successfully']);
+        json_response(false, null, 'One or more review fields exceed the allowed length', 422);
     }
-    
-    // Status update flow
-    if (empty($newStatus)) {
+    if ($requestedStatus === '' && !$notesProvided) {
         ob_end_clean();
-        json_response(false, null, 'Missing status');
+        json_response(false, null, 'A status or review note is required', 422);
     }
-    
-    $validStatuses = ['not_applied', 'applied', 'pending', 'accepted', 'rejected', 'deployed', 'ongoing', 'completed',
-                       'pending_review', 'approved']; // keep old values for backwards compat
-    if (!in_array($newStatus, $validStatuses)) {
+
+    $statusAliases = ['pending_review' => 'pending', 'approved' => 'accepted'];
+    $newStatus = $statusAliases[$requestedStatus] ?? $requestedStatus;
+    $validStatuses = ['pending', 'accepted', 'rejected', 'deployed', 'ongoing', 'completed'];
+    if ($newStatus !== '' && !in_array($newStatus, $validStatuses, true)) {
         ob_end_clean();
-        json_response(false, null, 'Invalid status value');
+        json_response(false, null, 'Invalid status value', 422);
     }
-    
-    // Map old status names to new ones
-    if ($newStatus === 'pending_review') $newStatus = 'pending';
-    if ($newStatus === 'approved') $newStatus = 'accepted';
-    
-    if ($newStatus === 'rejected' && empty($rejectionReason)) {
+    if ($newStatus === 'rejected' && $rejectionReason === '') {
         ob_end_clean();
-        json_response(false, null, 'Rejection reason is required');
+        json_response(false, null, 'Rejection reason is required', 422);
     }
-    
-    // Verify submission exists
-    $stmt = $pdo->prepare("SELECT id, user_id, full_name, email, department_applied, intern_pf_number, application_type FROM submissions WHERE id = ?");
-    $stmt->execute([$submissionId]);
+
+    $scope = $GLOBALS['sessionManager']->getScopedDepartment($session);
+    if ($scope !== 'ALL' && (!is_string($scope) || $scope === '')) {
+        ob_end_clean();
+        json_response(false, null, 'Administrator department scope is unavailable', 403);
+    }
+
+    $pdo->beginTransaction();
+    $lockClause = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql' ? ' FOR UPDATE' : '';
+    $query = 'SELECT id, user_id, full_name, email, department_applied, status, intern_pf_number, application_type FROM submissions WHERE id = ?';
+    $queryParams = [$submissionId];
+    if ($scope !== 'ALL') {
+        $query .= ' AND department_applied = ?';
+        $queryParams[] = $scope;
+    }
+    $stmt = $pdo->prepare($query . $lockClause);
+    $stmt->execute($queryParams);
     $submission = $stmt->fetch();
-    
     if (!$submission) {
+        $pdo->rollBack();
         ob_end_clean();
-        json_response(false, null, 'Submission not found');
+        json_response(false, null, 'Submission not found', 404);
     }
-    
-    // Get admin info from token if pfNumber missing
-    if (empty($pfNumber)) {
-        $session = $GLOBALS['sessionManager']->validateSession();
-        if ($session && $GLOBALS['sessionManager']->isAdminTier($session)) {
-            $pfNumber = $session['pf_number'];
-            $department = $session['department'];
+
+    $isSupervisor = $session['role_name'] === 'department_supervisor';
+    $currentStatus = (string)$submission['status'];
+    if ($newStatus !== '') {
+        $transitions = [
+            'applied' => ['pending', 'accepted', 'rejected'],
+            'pending' => ['accepted', 'rejected'],
+            'accepted' => ['deployed'],
+            'deployed' => ['ongoing'],
+            'ongoing' => ['completed'],
+        ];
+        if (!in_array($newStatus, $transitions[$currentStatus] ?? [], true)) {
+            $pdo->rollBack();
+            ob_end_clean();
+            json_response(false, null, 'This status transition is not permitted', 409);
         }
+        if ($isSupervisor && !in_array($currentStatus . '>' . $newStatus, ['accepted>deployed', 'deployed>ongoing', 'ongoing>completed'], true)) {
+            $pdo->rollBack();
+            ob_end_clean();
+            json_response(false, null, 'This role cannot perform the requested status transition', 403);
+        }
+    } elseif ($reviewNotes === '') {
+        $pdo->rollBack();
+        ob_end_clean();
+        json_response(false, null, 'Review notes cannot be empty', 422);
     }
 
-    // Auto-generate intern PF number when accepted — ONLY for internships
-    $internPf = $submission['intern_pf_number']; // keep existing if already set
-    $appType = $submission['application_type'] ?? 'attachment';
-    if ($newStatus === 'accepted' && empty($internPf) && $appType === 'internship') {
-        // 12-digit PF: yymmddHHmmss + 2 random digits
-        $internPf = date('ymdHis') . sprintf('%02d', rand(0, 99));
-        // Ensure 12 digits
-        $internPf = substr($internPf, 0, 12);
+    $pfNumber = (string)($session['pf_number'] ?? '');
+    $department = (string)($session['department'] ?? '');
+    $historyStatus = $newStatus !== '' ? $newStatus : 'note';
+    $historyNotes = $reviewNotes;
+    if ($newStatus !== '') {
+        $internPf = $submission['intern_pf_number'];
+        if ($newStatus === 'accepted' && empty($internPf) && ($submission['application_type'] ?? '') === 'internship') {
+            $internPf = date('ymdHis') . sprintf('%02d', random_int(0, 99));
+        }
+        $update = $pdo->prepare('UPDATE submissions SET status = ?, rejection_reason = ?, intern_pf_number = ?,
+                assigned_role = COALESCE(?, assigned_role), assigned_station = COALESCE(?, assigned_station),
+                last_updated_by = ?, last_updated_at = NOW() WHERE id = ?');
+        $update->execute([$newStatus, $newStatus === 'rejected' ? $rejectionReason : null,
+            $internPf, $assignedRole, $assignedStation, $pfNumber, $submissionId]);
+        if ($historyNotes === '') $historyNotes = $newStatus === 'rejected' ? 'Rejected: ' . $rejectionReason : 'Status changed to: ' . $newStatus;
     }
-    
-    // Update submission status
-    $stmt = $pdo->prepare("
-        UPDATE submissions 
-        SET status = ?, 
-            rejection_reason = ?,
-            intern_pf_number = ?,
-            assigned_role = COALESCE(?, assigned_role),
-            assigned_station = COALESCE(?, assigned_station),
-            last_updated_by = ?,
-            last_updated_at = NOW()
-        WHERE id = ?
-    ");
-    $stmt->execute([$newStatus, $rejectionReason, $internPf, $assignedRole, $assignedStation, $pfNumber, $submissionId]);
-    
-    // Add to review history
-    $notes = $reviewNotes ?: ($newStatus === 'rejected' ? "Rejected: $rejectionReason" : "Status changed to: $newStatus");
-    $stmt = $pdo->prepare("
-        INSERT INTO review_history (submission_id, reviewer_pf, reviewer_department, status, notes)
-        VALUES (?, ?, ?, ?, ?)
-    ");
-    $stmt->execute([$submissionId, $pfNumber, $department, $newStatus, $notes]);
-    $reviewHistoryId = (int) $pdo->lastInsertId();
 
-    // ---- Notify the student (email + in-app) ----
-    $studentName = $submission['full_name'] ?? 'Applicant';
-    $studentEmail = $submission['email'] ?? '';
-    $deptName = $submission['department_applied'] ?: ($department ?: 'the');
-    $notifyStatuses = ['accepted', 'rejected', 'deployed', 'ongoing', 'interview', 'completed'];
+    $history = $pdo->prepare('INSERT INTO review_history (submission_id, reviewer_pf, reviewer_department, status, notes) VALUES (?, ?, ?, ?, ?)');
+    $history->execute([$submissionId, $pfNumber, $department, $historyStatus, $historyNotes]);
+    $historyId = (int)$pdo->lastInsertId();
+    $pdo->commit();
 
-    if (in_array($newStatus, $notifyStatuses, true)) {
-        // Email (log-only if SMTP not configured)
-        if (!empty($studentEmail)) {
-            $sent = sendMail(
-                $studentEmail,
-                $studentName,
-                "Application Update — " . ucfirst($newStatus),
-                emailStatusChanged($studentName, $newStatus, $deptName)
-            );
+    if ($newStatus !== '' && in_array($newStatus, ['accepted', 'rejected', 'deployed', 'ongoing', 'completed'], true)) {
+        $departmentName = (string)$submission['department_applied'];
+        if (!empty($submission['email'])) {
+            $sent = sendMail((string)$submission['email'], (string)$submission['full_name'],
+                'Application Update — ' . ucfirst($newStatus), emailStatusChanged((string)$submission['full_name'], $newStatus, $departmentName));
             if ($sent) {
-                $pdo->prepare("UPDATE review_history SET email_sent = 1, email_sent_at = NOW() WHERE id = ?")
-                    ->execute([$reviewHistoryId]);
+                $pdo->prepare('UPDATE review_history SET email_sent = 1, email_sent_at = NOW() WHERE id = ?')->execute([$historyId]);
             }
         }
-
-        // In-app notification for the student
         if (!empty($submission['user_id'])) {
-            $titles = [
-                'accepted'  => 'Application Accepted',
-                'rejected'  => 'Application Update',
-                'deployed'  => 'You have been deployed',
-                'ongoing'   => 'Placement is now ongoing',
-                'interview' => 'Interview scheduled',
-                'completed' => 'Attachment completed',
-            ];
-            createNotification(
-                $pdo,
-                (int) $submission['user_id'],
-                'student',
-                $titles[$newStatus] ?? 'Application Update',
-                "Your application status is now: {$newStatus}.",
-                '../pages/student_dashboard.php'
-            );
+            $titles = ['accepted' => 'Application Accepted', 'rejected' => 'Application Update',
+                'deployed' => 'You have been deployed', 'ongoing' => 'Placement is now ongoing',
+                'completed' => 'Attachment completed'];
+            createNotification($pdo, (int)$submission['user_id'], 'student', $titles[$newStatus],
+                'Your application status is now: ' . $newStatus . '.', '../pages/student_dashboard.php');
         }
     }
-
-    $responseData = ['message' => "Status updated to $newStatus"];
-    if ($internPf) $responseData['intern_pf_number'] = $internPf;
-    
     ob_end_clean();
-    json_response(true, $responseData);
-    
-} catch (Exception $e) {
-    error_log("Update submission error: " . $e->getMessage());
+    json_response(true, ['message' => $newStatus === '' ? 'Review notes saved successfully' : 'Status updated to ' . $newStatus]);
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('Submission review update failed.');
     ob_end_clean();
-    json_response(false, null, 'Update failed: ' . $e->getMessage());
+    json_response(false, null, 'Submission update failed', 500);
 }
 ?>

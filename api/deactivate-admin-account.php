@@ -45,7 +45,7 @@ try {
     }
     
     // Prevent Super Admin from deactivating themselves
-    if ($adminId === $session['admin_id']) {
+    if ($adminId === (int)$session['admin_id']) {
         ob_end_clean();
         json_response(false, null, 'Cannot deactivate your own Super Admin account');
     }
@@ -74,13 +74,9 @@ try {
     }
     
     // Deactivate the account
-    $stmt = $pdo->prepare("
-        UPDATE admin_users 
-        SET status = 'inactive', updated_at = NOW(), updated_by = ?
-        WHERE id = ?
-    ");
-    
-    $result = $stmt->execute([$session['admin_id'], $adminId]);
+    $pdo->beginTransaction();
+    $stmt = $pdo->prepare("UPDATE admin_users SET status = 'inactive' WHERE id = ?");
+    $result = $stmt->execute([$adminId]);
     
     if (!$result) {
         throw new Exception('Failed to deactivate admin account');
@@ -99,12 +95,9 @@ try {
     $stmt->execute([$adminId]);
     
     // Update admin creation history if exists
-    $stmt = $pdo->prepare("
-        UPDATE admin_creation_history 
-        SET deactivation_reason = ?, deactivated_at = NOW()
-        WHERE created_admin_id = ? AND deactivated_at IS NULL
-    ");
-    $stmt->execute([$reason, $adminId]);
+    $stmt = $pdo->prepare("UPDATE admin_creation_history SET activation_status = 'deactivated' WHERE created_admin_id = ?");
+    $stmt->execute([$adminId]);
+    $pdo->commit();
     
     ob_end_clean();
     json_response(true, [
@@ -117,7 +110,8 @@ try {
     ]);
     
 } catch (Exception $e) {
-    error_log("Deactivate admin error: " . $e->getMessage());
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('Administrator deactivation failed.');
     ob_end_clean();
     json_response(false, null, 'Failed to deactivate admin account');
 }

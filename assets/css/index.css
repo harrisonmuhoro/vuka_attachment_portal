@@ -1,4 +1,632 @@
-/* === VERIFY CODE INPUT === */
+/* ============================================================
+   Vuka Attachment & Internship Portal — Homepage Styles
+   ============================================================ */
+
+/* --- Top Announcement / Utility Bar --- */
+.gov-top-bar {
+    background: var(--county-green-dark);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.825rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+.gov-top-bar a {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    transition: var(--transition-fast);
+}
+.gov-top-bar a:hover {
+    color: var(--county-white);
+    text-decoration: underline;
+}
+
+/* --- Main Navigation Header --- */
+.site-navbar {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--c-border);
+    position: sticky;
+    top: 0;
+    z-index: 1040;
+    transition: var(--transition);
+}
+[data-theme="dark"] .site-navbar {
+    background: rgba(11, 30, 20, 0.94);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.site-navbar .nav-link {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.925rem;
+    color: var(--c-ink);
+    padding: 0.6rem 0.9rem !important;
+    border-radius: var(--radius-sm);
+    transition: var(--transition-fast);
+}
+.site-navbar .nav-link:hover,
+.site-navbar .nav-link.active {
+    color: var(--county-green);
+    background: rgba(15, 122, 69, 0.08);
+}
+[data-theme="dark"] .site-navbar .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+}
+[data-theme="dark"] .site-navbar .nav-link:hover {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+}
+
+.brand-crest {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+}
+.brand-crest .badge-gov {
+    font-size: 0.7rem;
+    background: rgba(15, 122, 69, 0.12);
+    color: var(--county-green);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+[data-theme="dark"] .brand-crest .badge-gov {
+    background: rgba(74, 222, 128, 0.18);
+    color: #4ade80;
+}
+
+/* --- Hero Section --- */
+.hero-section {
+    position: relative;
+    padding: 4.5rem 0 3.5rem;
+    background: linear-gradient(135deg, rgba(15, 122, 69, 0.06) 0%, rgba(197, 64, 26, 0.04) 50%, rgba(244, 247, 245, 1) 100%);
+    overflow: hidden;
+    border-bottom: 1px solid var(--c-border);
+}
+[data-theme="dark"] .hero-section {
+    background: linear-gradient(135deg, #0B1E14 0%, #10291C 60%, #07120B 100%);
+    border-color: rgba(255, 255, 255, 0.06);
+}
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--county-white);
+    color: var(--county-green);
+    border: 1px solid rgba(15, 122, 69, 0.25);
+    padding: 0.35rem 0.9rem;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 1.25rem;
+}
+[data-theme="dark"] .hero-badge {
+    background: rgba(15, 122, 69, 0.18);
+    color: #4ade80;
+    border-color: rgba(74, 222, 128, 0.3);
+}
+.hero-title {
+    font-family: var(--font-display);
+    font-size: 3rem;
+    font-weight: 800;
+    line-height: 1.18;
+    color: var(--c-ink);
+    letter-spacing: -0.025em;
+    margin-bottom: 1.25rem;
+}
+[data-theme="dark"] .hero-title {
+    color: #ffffff;
+}
+.hero-title .text-accent {
+    background: linear-gradient(135deg, var(--county-green) 0%, #15803d 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+[data-theme="dark"] .hero-title .text-accent {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.hero-subtitle {
+    font-size: 1.15rem;
+    line-height: 1.65;
+    color: var(--c-slate);
+    margin-bottom: 2rem;
+    max-width: 620px;
+}
+[data-theme="dark"] .hero-subtitle {
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.hero-stats-row {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme="dark"] .hero-stats-row {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.hero-stat-card {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow-sm);
+    transition: var(--transition);
+}
+[data-theme="dark"] .hero-stat-card {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.hero-stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--county-green);
+}
+.hero-stat-num {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--county-green);
+    line-height: 1;
+    margin-bottom: 0.35rem;
+}
+[data-theme="dark"] .hero-stat-num {
+    color: #4ade80;
+}
+.hero-stat-label {
+    font-size: 0.85rem;
+    color: var(--c-slate);
+    font-weight: 500;
+}
+
+/* --- Section Headers --- */
+.section-tag {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--county-green);
+    background: rgba(15, 122, 69, 0.1);
+    padding: 0.3rem 0.75rem;
+    border-radius: 50px;
+    display: inline-block;
+    margin-bottom: 0.75rem;
+}
+[data-theme="dark"] .section-tag {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.12);
+}
+.section-heading {
+    font-family: var(--font-display);
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--c-ink);
+    margin-bottom: 0.85rem;
+    letter-spacing: -0.02em;
+}
+[data-theme="dark"] .section-heading {
+    color: #ffffff;
+}
+.section-lead {
+    font-size: 1.05rem;
+    color: var(--c-slate);
+    max-width: 650px;
+    margin: 0 auto;
+}
+[data-theme="dark"] .section-lead {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Vacancies Filter & Cards --- */
+.filter-search-box {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-lg);
+    padding: 1.25rem;
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 2rem;
+}
+[data-theme="dark"] .filter-search-box {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.filter-chip-btn {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.4rem 0.9rem;
+    border-radius: 50px;
+    border: 1px solid var(--c-border);
+    background: var(--county-white);
+    color: var(--c-ink);
+    transition: var(--transition-fast);
+}
+[data-theme="dark"] .filter-chip-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.85);
+}
+.filter-chip-btn.active,
+.filter-chip-btn:hover {
+    background: var(--county-green);
+    border-color: var(--county-green);
+    color: var(--county-white);
+}
+[data-theme="dark"] .filter-chip-btn.active {
+    background: #4ade80;
+    border-color: #4ade80;
+    color: #0B1E14;
+}
+
+.vacancy-card {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+[data-theme="dark"] .vacancy-card {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.vacancy-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--county-green);
+    transition: var(--transition-fast);
+}
+.vacancy-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: rgba(15, 122, 69, 0.35);
+}
+.vacancy-card:hover::before {
+    width: 6px;
+    background: var(--county-gold);
+}
+.vacancy-dept-badge {
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.3rem 0.65rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: rgba(15, 122, 69, 0.1);
+    color: var(--county-green);
+}
+[data-theme="dark"] .vacancy-dept-badge {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+.vacancy-type-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.3rem 0.65rem;
+    border-radius: 4px;
+    background: rgba(197, 64, 26, 0.1);
+    color: var(--county-gold);
+}
+[data-theme="dark"] .vacancy-type-badge {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+}
+.vacancy-title {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--c-ink);
+    margin: 0.85rem 0 0.5rem;
+}
+[data-theme="dark"] .vacancy-title {
+    color: #ffffff;
+}
+.vacancy-desc {
+    font-size: 0.9rem;
+    color: var(--c-slate);
+    line-height: 1.55;
+    margin-bottom: 1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+[data-theme="dark"] .vacancy-desc {
+    color: rgba(255, 255, 255, 0.7);
+}
+.skill-tag {
+    font-size: 0.75rem;
+    background: var(--c-surface);
+    color: var(--c-ink);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--c-border);
+    display: inline-block;
+    margin: 0.15rem 0.15rem;
+}
+[data-theme="dark"] .skill-tag {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.85);
+}
+.deadline-pill {
+    font-size: 0.8rem;
+    color: var(--c-slate);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+[data-theme="dark"] .deadline-pill {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* --- Workflow Step Cards --- */
+.step-card {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    height: 100%;
+    position: relative;
+    transition: var(--transition);
+}
+[data-theme="dark"] .step-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.step-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--county-green);
+}
+.step-icon-wrap {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(15, 122, 69, 0.1);
+    color: var(--county-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin: 0 auto 1.25rem;
+    transition: var(--transition-fast);
+}
+[data-theme="dark"] .step-icon-wrap {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+.step-card:hover .step-icon-wrap {
+    background: var(--county-green);
+    color: var(--county-white);
+    transform: scale(1.08);
+}
+.step-num {
+    position: absolute;
+    top: 1rem;
+    right: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="dark"] .step-num {
+    color: rgba(255, 255, 255, 0.12);
+}
+.step-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--c-ink);
+    margin-bottom: 0.65rem;
+}
+[data-theme="dark"] .step-title {
+    color: #ffffff;
+}
+.step-text {
+    font-size: 0.875rem;
+    color: var(--c-slate);
+    line-height: 1.55;
+    margin: 0;
+}
+[data-theme="dark"] .step-text {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* --- Requirements List --- */
+.req-item-card {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    transition: var(--transition-fast);
+}
+[data-theme="dark"] .req-item-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.req-item-card:hover {
+    border-color: var(--county-green);
+    box-shadow: var(--shadow-sm);
+}
+.req-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-sm);
+    background: rgba(197, 64, 26, 0.1);
+    color: var(--county-gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+[data-theme="dark"] .req-icon {
+    background: rgba(248, 113, 113, 0.15);
+    color: #f87171;
+}
+
+/* --- Department Grid --- */
+.dept-grid-card {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    height: 100%;
+    transition: var(--transition);
+    cursor: pointer;
+}
+[data-theme="dark"] .dept-grid-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.dept-grid-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--county-green);
+    box-shadow: var(--shadow-md);
+}
+.dept-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    background: rgba(15, 122, 69, 0.1);
+    color: var(--county-green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+}
+[data-theme="dark"] .dept-icon {
+    background: rgba(74, 222, 128, 0.15);
+    color: #4ade80;
+}
+.dept-title {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--c-ink);
+    margin-bottom: 0.35rem;
+}
+[data-theme="dark"] .dept-title {
+    color: #ffffff;
+}
+.dept-desc {
+    font-size: 0.85rem;
+    color: var(--c-slate);
+    line-height: 1.5;
+    margin: 0;
+}
+[data-theme="dark"] .dept-desc {
+    color: rgba(255, 255, 255, 0.65);
+}
+
+/* --- Trust / Security Banner --- */
+.trust-banner {
+    background: linear-gradient(135deg, var(--county-green) 0%, #0B1E14 100%);
+    color: #ffffff;
+    border-radius: var(--radius-lg);
+    padding: 3rem 2.5rem;
+    position: relative;
+    overflow: hidden;
+}
+.trust-banner h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+}
+
+/* --- FAQ Accordion --- */
+.accordion-item {
+    background: var(--county-white);
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-sm) !important;
+    margin-bottom: 0.75rem;
+    overflow: hidden;
+}
+[data-theme="dark"] .accordion-item {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+.accordion-button {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--c-ink);
+    background: transparent;
+    padding: 1.15rem 1.25rem;
+    box-shadow: none !important;
+}
+[data-theme="dark"] .accordion-button {
+    color: #ffffff;
+}
+.accordion-button:not(.collapsed) {
+    color: var(--county-green);
+    background: rgba(15, 122, 69, 0.05);
+}
+[data-theme="dark"] .accordion-button:not(.collapsed) {
+    color: #4ade80;
+    background: rgba(74, 222, 128, 0.1);
+}
+.accordion-body {
+    color: var(--c-slate);
+    font-size: 0.925rem;
+    line-height: 1.6;
+    padding: 0 1.25rem 1.25rem;
+}
+[data-theme="dark"] .accordion-body {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* --- Institutional Footer --- */
+.site-footer {
+    background: #0B1E14;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 4rem 0 2rem;
+    margin-top: auto;
+    font-size: 0.9rem;
+}
+.site-footer h5 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    color: #ffffff;
+    font-size: 1rem;
+    margin-bottom: 1.25rem;
+}
+.site-footer a {
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    transition: var(--transition-fast);
+}
+.site-footer a:hover {
+    color: #4ade80;
+    text-decoration: underline;
+}
+.footer-divider {
+    border-color: rgba(255, 255, 255, 0.12);
+    margin: 2.5rem 0 1.5rem;
+}
+
+/* --- Verification Code Input --- */
 .verify-code-input {
     font-size: 1.75rem;
     text-align: center;
@@ -8,7 +636,6 @@
     border: 2px solid var(--county-green);
     border-radius: var(--radius-md);
 }
-
 .verify-code-input:focus {
     box-shadow: 0 0 0 4px rgba(0, 100, 0, 0.15);
 }

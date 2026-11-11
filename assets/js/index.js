@@ -42,6 +42,7 @@ if (loginForm) loginForm.addEventListener('submit', async function (e) {
                 if (data.role === 'admin' || data.role === 'super_admin') {
                     sessionStorage.setItem('adminLoggedIn', 'true');
                     sessionStorage.setItem('adminToken', data.token);
+                    if (data.csrf_token) sessionStorage.setItem('vukaCsrfToken', data.csrf_token);
                     sessionStorage.setItem('adminPF', data.pf_number);
                     sessionStorage.setItem('adminDept', data.department || 'ALL');
                     sessionStorage.setItem('adminName', data.full_name || data.pf_number);
@@ -49,6 +50,7 @@ if (loginForm) loginForm.addEventListener('submit', async function (e) {
                 } else {
                     sessionStorage.setItem('currentUser', data.user.national_id);
                     sessionStorage.setItem('userToken', data.token);
+                    if (data.csrf_token) sessionStorage.setItem('vukaCsrfToken', data.csrf_token);
                     sessionStorage.setItem('userId', data.user.userId);
                     sessionStorage.setItem('userName', data.user.full_name);
                     sessionStorage.setItem('userEmail', data.user.email || '');
@@ -113,8 +115,8 @@ if (registrationForm) registrationForm.addEventListener('submit', async function
         return;
     }
 
-    if (password.length < 6) {
-        showToast('Password must be at least 6 characters.', 'warning');
+    if (password.length < 8) {
+        showToast('Password must be at least 8 characters.', 'warning');
         return;
     }
 
@@ -136,11 +138,6 @@ if (registrationForm) registrationForm.addEventListener('submit', async function
             sessionStorage.setItem('pendingVerifyId', idNumber);
             openVerificationModal(email);
             registrationForm.reset(); registrationForm.classList.remove('was-validated');
-
-            // SHOW DEBUG CODE FOR LOCALHOST
-            if (data.debug_code) {
-                alert(`[LOCALHOST DEBUG] Your verification code is: ${data.debug_code}`);
-            }
 
             showToast('Registration successful! Check your email for verification code.', 'success');
         } else { showToast(data.message || data.error || 'Registration failed.', 'error'); }
@@ -224,6 +221,7 @@ if (adminLoginForm) adminLoginForm.addEventListener('submit', async function (e)
             const role = data.role || 'department_admin';
             sessionStorage.setItem('adminLoggedIn', 'true');
             sessionStorage.setItem('adminToken', data.token);
+            if (data.csrf_token) sessionStorage.setItem('vukaCsrfToken', data.csrf_token);
             sessionStorage.setItem('adminPF', data.pf_number || pfNumber);
             sessionStorage.setItem('adminRole', role);
             sessionStorage.setItem('adminDept', data.department || 'ALL');

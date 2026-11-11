@@ -1,4 +1,5 @@
 <?php
+/** Stream a document only to its applicant or an authorized administrator. */
 
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
@@ -7,73 +8,69 @@ ini_set('log_errors', 1);
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    json_response(false, null, 'Method not allowed');
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+    json_response(false, null, 'Method not allowed', 405);
 }
 
-$session = requireAnyAdmin();
-
 try {
-    $documentId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-    $submissionId = isset($_GET['submissionId']) ? (int)$_GET['submissionId'] : 0;
-    $documentType = isset($_GET['documentType']) ? trim($_GET['documentType']) : '';
-    
-    $document = null;
-    
-    // Lookup by document ID
-    if ($documentId > 0) {
-        $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_content, d.mime_type, s.full_name, s.department_applied
-            FROM documents d
-            JOIN submissions s ON d.submission_id = s.id
-            WHERE d.id = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$documentId]);
-        $document = $stmt->fetch();
-    }
-    // Fallback: lookup by submission ID + document type
-    elseif ($submissionId > 0 && !empty($documentType)) {
-        $stmt = $pdo->prepare("
-            SELECT d.original_filename, d.file_content, d.mime_type, s.full_name, s.department_applied
-            FROM documents d
-            JOIN submissions s ON d.submission_id = s.id
-            WHERE d.submission_id = ? AND d.document_type = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$submissionId, $documentType]);
-        $document = $stmt->fetch();
+    $candidate = $GLOBALS['sessionManager']->validateSession();
+    if (!$candidate) json_response(false, null, 'Authentication required', 401);
+
+    $params = [];
+    if ($candidate['role_name'] === 'student' && $candidate['user_type'] === 'student') {
+        $session = requireStudent();
+        $scopeSql = 's.user_id = ?';
+        $params[] = (int)$session['user_id'];
+    } elseif ($GLOBALS['sessionManager']->isAdminTier($candidate)) {
+        $session = requireAnyAdmin();
+        $scope = $GLOBALS['sessionManager']->getScopedDepartment($session);
+        if ($scope === 'ALL') {
+            $scopeSql = '1 = 1';
+        } elseif (is_string($scope) && $scope !== '') {
+            $scopeSql = 's.department_applied = ?';
+            $params[] = $scope;
+        } else {
+            json_response(false, null, 'Administrator department scope is unavailable', 403);
+        }
     } else {
-        json_response(false, null, 'Missing document ID or submission parameters');
-    }
-    
-    if (!$document) {
-        json_response(false, null, 'Document not found');
+        json_response(false, null, 'Forbidden', 403);
     }
 
-    $scopedDept = $GLOBALS['sessionManager']->getScopedDepartment($session);
-    if ($scopedDept !== null && $scopedDept !== 'ALL' && ($document['department_applied'] ?? null) !== $scopedDept) {
-        http_response_code(403);
-        json_response(false, null, 'Forbidden: document is outside your department');
+    $documentId = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
+    $submissionId = filter_input(INPUT_GET, 'submissionId', FILTER_VALIDATE_INT);
+    $documentType = trim((string)($_GET['documentType'] ?? ''));
+    if ($documentId !== null && $documentId !== false && $documentId > 0) {
+        $identifierSql = 'd.id = ?';
+        $identifierParams = [$documentId];
+    } elseif ($submissionId !== null && $submissionId !== false && $submissionId > 0 && $documentType !== '') {
+        $identifierSql = 'd.submission_id = ? AND d.document_type = ?';
+        $identifierParams = [$submissionId, $documentType];
+    } else {
+        json_response(false, null, 'Missing document ID or submission parameters', 400);
     }
 
-    if (empty($document['file_content'])) {
-        json_response(false, null, 'File content not found in database');
+    $stmt = $pdo->prepare("SELECT d.original_filename, d.file_content, d.mime_type
+        FROM documents d JOIN submissions s ON s.id = d.submission_id
+        WHERE {$identifierSql} AND {$scopeSql} LIMIT 1");
+    $stmt->execute(array_merge($identifierParams, $params));
+    $document = $stmt->fetch();
+    if (!$document || $document['file_content'] === null) {
+        json_response(false, null, 'Document not found', 404);
     }
-    
-    // Stream file (do NOT send JSON headers - this is a binary response)
+    $allowedMime = ['application/pdf', 'image/jpeg', 'image/png'];
+    if (!in_array($document['mime_type'], $allowedMime, true)) {
+        json_response(false, null, 'Document type cannot be served', 415);
+    }
+    $filename = preg_replace('/[^A-Za-z0-9._-]/', '_', basename((string)$document['original_filename']));
     header('Content-Type: ' . $document['mime_type']);
-    header('Content-Disposition: inline; filename="' . $document['original_filename'] . '"');
+    header('Content-Disposition: attachment; filename="' . ($filename ?: 'document') . '"');
     header('Content-Length: ' . strlen($document['file_content']));
-    header('Cache-Control: private, max-age=3600');
-    header('Pragma: public');
-    
+    header('Cache-Control: private, no-store, max-age=0');
+    header('X-Content-Type-Options: nosniff');
     echo $document['file_content'];
-    exit;
-    
-} catch (Exception $e) {
-    error_log("Download error: " . $e->getMessage());
+} catch (Throwable $e) {
+    error_log('Document download failed.');
     http_response_code(500);
-    json_response(false, null, 'Download failed');
+    json_response(false, null, 'Download failed', 500);
 }
 ?>

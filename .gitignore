@@ -11,6 +11,7 @@
 # === DATABASE FILES ===
 *.sql
 !config/database.sql
+!migrations/*.sql
 *.sqlite
 *.sqlite3
 

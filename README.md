@@ -261,17 +261,10 @@ All endpoints live under `/api/`. Authenticated requests send `Authorization: Be
 
 ### 1. Database
 1. Create a database named `vuka_attachment_portal`.
-2. Import **`config/database.sql`** — this is the consolidated master schema that builds the tables (including the `LONGBLOB` columns for files) and seeds roles, departments, and the default Super Admin.
+2. Import **`config/database.sql`** — this is the consolidated initialization schema that builds the tables (including the `LONGBLOB` columns for files) and seeds roles and departments. It does not create an administrator account.
 
 ### 2. Configuration
-Edit `config/config.php` and set your database credentials if they differ from the defaults:
-```php
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', 'root');
-define('DB_NAME', 'vuka_attachment_portal');
-define('DB_PORT', 3306);
-```
+Set database and mail credentials in a private root `.env` file. Never commit that file.
 
 ### 3. Environment
 1. The system utilizes `config/.htaccess` to protect your configuration files.
@@ -279,18 +272,7 @@ define('DB_PORT', 3306);
 
 ### 4. Run
 - Open `http://localhost/attachment/index.php`.
-- Register a student account to test the applicant flow, or log in as the Super Admin to configure staff accounts.
+- Provision the first Super Admin securely from a local terminal: `php scripts/provision-admin.php`.
+- Register an applicant account and verify the code delivered to its email address.
 
----
-
-## Default Credentials
-
-A default Super Admin is seeded on install:
-
-| Field | Value |
-|---|---|
-| PF Number | `SUPER/ADMIN/001` |
-| National ID | `12345678` |
-| Password | `admin123` |
-
-> ⚠️ **Change these immediately after first login.** The default credentials are public knowledge and must not be used in any live environment.
+Existing installations must apply the versioned Phase 1 migration before deploying this release. It disables the original seeded administrator account while preserving the row; provision a replacement account or rotate existing credentials before normal operation.
