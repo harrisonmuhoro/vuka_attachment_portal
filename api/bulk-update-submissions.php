@@ -9,6 +9,7 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/application-workflow.php';
+require_once __DIR__ . '/../lib/authorization.php';
 require_once __DIR__ . '/../lib/notifications.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -19,6 +20,7 @@ require_json_request();
 
 try {
     $session = requireAnyAdmin();
+    Authorization::requirePermission($session, 'applications.update_status');
     $input = json_decode(file_get_contents('php://input'), true);
     if (!is_array($input)) {
         ob_end_clean();
