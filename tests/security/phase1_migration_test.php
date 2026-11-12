@@ -38,7 +38,13 @@ try {
     $environment['DB_PASS'] = DB_PASS;
     $runScript = static function (string $script) use ($environment) {
         $pipes = [];
-        $process = proc_open([PHP_BINARY, $script], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__, 2), $environment);
+        $quote = static function (string $value): string {
+            return PHP_OS_FAMILY === 'Windows'
+                ? '"' . str_replace('"', '\\"', $value) . '"'
+                : escapeshellarg($value);
+        };
+        $command = $quote(PHP_BINARY) . ' ' . $quote($script);
+        $process = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, dirname(__DIR__, 2), $environment);
         if (!is_resource($process)) return [127, '', 'Could not start migration script'];
         fclose($pipes[0]);
         $stdout = stream_get_contents($pipes[1]); fclose($pipes[1]);

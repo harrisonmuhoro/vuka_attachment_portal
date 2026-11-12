@@ -28,6 +28,7 @@ $schema = [
     'CREATE TABLE vacancies (id INTEGER PRIMARY KEY AUTOINCREMENT, department_name TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, skills_required TEXT, positions_count INTEGER DEFAULT 1, vacancy_type TEXT NOT NULL DEFAULT "attachment", deadline_at TEXT, status TEXT NOT NULL DEFAULT "pending", created_by INTEGER, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE submissions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, national_id TEXT NOT NULL, full_name TEXT NOT NULL, email TEXT NOT NULL, vacancy_id INTEGER, application_type TEXT NOT NULL DEFAULT "attachment", duration TEXT, insurance_cover TEXT, course_applying TEXT, institution_name TEXT, department_applied TEXT NOT NULL, status TEXT NOT NULL DEFAULT "applied", placement_status TEXT DEFAULT "pending", rejection_reason TEXT, review_notes TEXT, intern_pf_number TEXT, assigned_role TEXT, assigned_station TEXT, last_updated_by TEXT, submitted_at TEXT DEFAULT CURRENT_TIMESTAMP, last_updated_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE documents (id INTEGER PRIMARY KEY AUTOINCREMENT, submission_id INTEGER NOT NULL, document_type TEXT NOT NULL, original_filename TEXT NOT NULL, file_path TEXT, mime_type TEXT NOT NULL, file_size INTEGER NOT NULL DEFAULT 0, file_content BLOB, uploaded_at TEXT DEFAULT CURRENT_TIMESTAMP)',
+    'CREATE TABLE submission_cleanup_queue (id INTEGER PRIMARY KEY AUTOINCREMENT, submission_id INTEGER NOT NULL, file_path TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, available_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, last_error TEXT, completed_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE review_history (id INTEGER PRIMARY KEY AUTOINCREMENT, submission_id INTEGER NOT NULL, reviewer_pf TEXT, reviewer_department TEXT, status TEXT NOT NULL, notes TEXT, email_sent INTEGER NOT NULL DEFAULT 0, email_sent_at TEXT, reviewed_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER NOT NULL, admin_pf TEXT NOT NULL, admin_role TEXT NOT NULL, action TEXT NOT NULL, entity_type TEXT NOT NULL, entity_id INTEGER, target_admin_id INTEGER, target_admin_pf TEXT, old_values TEXT, new_values TEXT, ip_address TEXT, user_agent TEXT, details TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)',
     'CREATE TABLE admin_creation_history (id INTEGER PRIMARY KEY AUTOINCREMENT, created_admin_id INTEGER NOT NULL, created_by_admin_id INTEGER NOT NULL, role_id INTEGER NOT NULL, department_id INTEGER, activation_status TEXT NOT NULL)',
@@ -162,13 +163,27 @@ try {
     $environment['DB_USER'] = '';
     $environment['DB_PASS'] = '';
     $environment['VUKA_LOG_DIR'] = $logDirectory;
-    $command = [PHP_BINARY, '-d', 'session.save_path=' . $sessionDirectory, '-S', '127.0.0.1:' . $port, '-t', $root];
+    // Use a shell command string for Windows compatibility; proc_open arrays
+    // are not consistently supported by the Windows PHP process launcher.
+    $quote = static function (string $value): string {
+        return PHP_OS_FAMILY === 'Windows'
+            ? '"' . str_replace('"', '\\"', $value) . '"'
+            : escapeshellarg($value);
+    };
+    $command = $quote(PHP_BINARY)
+        . ' -d ' . $quote('session.save_path=' . $sessionDirectory)
+        . ' -S ' . $quote('127.0.0.1:' . $port)
+        . ' -t ' . $quote($root);
     $server = proc_open($command, [0 => ['pipe', 'r'], 1 => ['file', $serverLog, 'a'], 2 => ['file', $serverLog, 'a']], $pipes, $root, $environment);
     if (!is_resource($server)) throw new RuntimeException('Unable to start isolated PHP test server');
     $ready = false;
     for ($i = 0; $i < 40; $i++) {
-        $probe = @file_get_contents($baseUrl . '/');
-        if ($probe !== false) { $ready = true; break; }
+        $probe = curl_init($baseUrl . '/');
+        curl_setopt_array($probe, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 1, CURLOPT_TIMEOUT => 2]);
+        curl_exec($probe);
+        $probeError = curl_errno($probe);
+        curl_close($probe);
+        if ($probeError === 0) { $ready = true; break; }
         usleep(100000);
     }
     if (!$ready) throw new RuntimeException('Isolated PHP test server did not start');
@@ -503,7 +518,11 @@ try {
     }
     $assert('Default plaintext administrator password absent from docs and seed', !str_contains($readme, $legacyPassword) && !str_contains($seed, $legacyPassword) && !$docsContainDefault, 'source scan');
 } catch (Throwable $e) {
-    $assert('Security regression harness completed', false, $e->getMessage());
+    $diagnostic = $e->getMessage();
+    if (is_file($serverLog)) {
+        $diagnostic .= ' | server: ' . trim((string)file_get_contents($serverLog));
+    }
+    $assert('Security regression harness completed', false, $diagnostic);
 } finally {
     if (is_resource($server)) {
         proc_terminate($server);

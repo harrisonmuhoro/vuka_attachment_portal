@@ -14,7 +14,8 @@ The workflow passed `fail-fast: true` to `shivammathur/setup-php@v2`. That actio
 
 - Expanded `lib/authorization.php` into a single permission registry covering account lifecycle, applications, evaluations, reports, audit, interviews and profiles.
 - Integrated explicit permission checks into bulk review, submission updates, analytics and interview endpoints.
-- Reworked submission deletion so database deletion and its audit event commit before physical file cleanup; cleanup failures are returned and logged for retry handling.
+- Reworked submission deletion so database deletion and its audit event commit before physical file cleanup; physical paths are queued in `submission_cleanup_queue` for retryable, idempotent processing by `scripts/process-submission-cleanup.php`.
+- Added migration `002_submission_cleanup_queue.sql` and made the migration runner apply all ordered migrations idempotently.
 - Added an individual 46-row endpoint inventory at `docs/security/API-ENDPOINT-INVENTORY.md`.
 - Removed the invalid CI action input without changing unrelated workflow behavior.
 
@@ -22,10 +23,10 @@ The workflow passed `fail-fast: true` to `shivammathur/setup-php@v2`. That actio
 
 - PHP syntax checks for all changed PHP files: passed.
 - `git diff --check`: passed.
-- Existing security regression suite: not passing locally on Windows because its isolated PHP server did not start; no assertions were counted.
-- Disposable MySQL migration suite: not executed successfully locally because the configured MySQL socket was inaccessible.
+- `php tests/security/phase1_security_tests.php`: **107 passed, 0 failed** (executed outside the restricted sandbox so localhost loopback was available).
+- `php tests/security/phase1_migration_test.php`: **7 passed, 0 failed** against a disposable MySQL 8.4.7 instance on port 3307; the existing WAMP database was not modified.
 - Hosted GitHub Actions: historical failed logs unavailable through the unauthenticated public API; a successful rerun is still required before merge approval.
 
 ## Remaining risks and next steps
 
-The CI job must be rerun on this branch with repository Actions access. The deletion cleanup path currently exposes cleanup failures and logs them; a durable cleanup queue should be added if operational retry guarantees are required. Full endpoint negative tests for every role and department, plus disposable MySQL migration execution, remain mandatory before a pull request is merge-ready.
+The CI job must be rerun on this branch with repository Actions access. Additional dedicated queue failure-injection tests should be added before production approval.
