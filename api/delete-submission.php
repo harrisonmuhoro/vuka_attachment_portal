@@ -76,15 +76,20 @@ try {
     foreach ($documents as $doc) {
         $relative = (string)($doc['file_path'] ?? '');
         if ($relative === '') continue;
-        $filepath = UPLOAD_DIR . $relative;
-        if (is_file($filepath) && !@unlink($filepath)) $cleanupFailures[] = $relative;
+        try {
+            $queue = $pdo->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)');
+            $queue->execute([$submissionId, $relative]);
+        } catch (Throwable $queueError) {
+            $cleanupFailures[] = $relative;
+            error_log('Submission cleanup queue insert failed for ' . $submissionId . ': ' . $queueError->getMessage());
+        }
     }
     if ($cleanupFailures) {
         error_log('Submission file cleanup pending for submission ' . $submissionId . ': ' . implode(',', $cleanupFailures));
     }
     
     ob_end_clean();
-    json_response(true, ['message' => 'Submission deleted successfully', 'cleanup_failures' => $cleanupFailures]);
+    json_response(true, ['message' => 'Submission deleted successfully']);
     
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
