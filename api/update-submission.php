@@ -9,6 +9,7 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/application-workflow.php';
+require_once __DIR__ . '/../lib/authorization.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
 require_once __DIR__ . '/../lib/notifications.php';
@@ -21,6 +22,7 @@ require_json_request();
 
 try {
     $session = requireAnyAdmin();
+    Authorization::requirePermission($session, 'applications.update_status');
     $data = json_decode(file_get_contents('php://input'), true);
     if (!is_array($data)) {
         ob_end_clean();

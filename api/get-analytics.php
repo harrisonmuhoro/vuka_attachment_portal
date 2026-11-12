@@ -16,6 +16,7 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -26,6 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 try {
     $session = requireAnyAdmin();
+    Authorization::requirePermission($session,
+        ($session['role_name'] ?? '') === 'department_supervisor' ? 'reports.view_department' : 'reports.view_all');
 
     $scope = $GLOBALS['sessionManager']->getScopedDepartment($session);
 

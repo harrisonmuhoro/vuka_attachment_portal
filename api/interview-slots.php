@@ -20,8 +20,10 @@ require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/notifications.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 $session = requireAnyAdmin();
+Authorization::requirePermission($session, 'interviews.manage');
 $scope   = $GLOBALS['sessionManager']->getScopedDepartment($session);
 
 $method = $_SERVER['REQUEST_METHOD'];

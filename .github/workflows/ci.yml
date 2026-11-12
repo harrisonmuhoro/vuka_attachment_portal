@@ -52,7 +52,6 @@ jobs:
           extensions: curl, fileinfo, mbstring, pdo_mysql, pdo_sqlite, sqlite3
           tools: none
           coverage: none
-          fail-fast: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
