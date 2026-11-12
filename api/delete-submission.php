@@ -53,11 +53,14 @@ try {
         json_response(false, null, 'Unauthorized: Cannot delete submission from other department');
     }
     
-    // Capture paths before deletion; physical cleanup happens only after commit.
+    // Capture document paths before the transaction so we can queue them atomically.
     $stmt = $pdo->prepare("SELECT file_path FROM documents WHERE submission_id = ?");
     $stmt->execute([$submissionId]);
     $documents = $stmt->fetchAll();
-    
+
+    // All three operations — DELETE, audit log and cleanup queue inserts — are wrapped in
+    // a single transaction.  If the process crashes after commit the queue records already
+    // exist.  If anything fails before commit the whole operation rolls back cleanly.
     $pdo->beginTransaction();
     $stmt = $pdo->prepare("DELETE FROM submissions WHERE id = ?");
     $stmt->execute([$submissionId]);
@@ -67,27 +70,19 @@ try {
     $audit = new AuditLogger($pdo);
     if (!$audit->log($session, 'delete_submission', 'submission', $submissionId,
         ['department_applied' => $submission['department_applied']], null, null,
-        'Submission deleted after authorization and database commit preparation')) {
+        'Submission deleted — cleanup queued atomically')) {
         throw new RuntimeException('Deletion audit could not be recorded');
     }
-    $pdo->commit();
-
-    $cleanupFailures = [];
+    // Insert cleanup queue records inside the same transaction so they are committed
+    // or rolled back together with the submission row.  There is no failure window.
+    $queueStmt = $pdo->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)');
     foreach ($documents as $doc) {
         $relative = (string)($doc['file_path'] ?? '');
         if ($relative === '') continue;
-        try {
-            $queue = $pdo->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)');
-            $queue->execute([$submissionId, $relative]);
-        } catch (Throwable $queueError) {
-            $cleanupFailures[] = $relative;
-            error_log('Submission cleanup queue insert failed for ' . $submissionId . ': ' . $queueError->getMessage());
-        }
+        $queueStmt->execute([$submissionId, $relative]);
     }
-    if ($cleanupFailures) {
-        error_log('Submission file cleanup pending for submission ' . $submissionId . ': ' . implode(',', $cleanupFailures));
-    }
-    
+    $pdo->commit();
+
     ob_end_clean();
     json_response(true, ['message' => 'Submission deleted successfully']);
     
