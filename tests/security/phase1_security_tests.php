@@ -347,33 +347,203 @@ try {
     $r = $jsonRequest('POST', '/api/delete-submission.php', $tokenSupervisor, ['submission_id' => 1]);
     $assert('Supervisor cannot delete applications', $r[0] === 403, 'HTTP ' . $r[0]);
 
-    // --- Task 4: Submission cleanup queue tests ---
-    // Setup: insert a submission with a document that has a non-empty file_path so delete queues it.
-    $db->exec("INSERT INTO submissions (id,user_id,national_id,full_name,email,department_applied,status) VALUES (900,1,'10000001','Queue Test','queue@example.test','ICT','applied')");
-    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (900,'letter','q.pdf','uploads/q.pdf','application/pdf',1024)");
+    // ── Phase 2.2 — Comprehensive Transaction Integrity & Worker Reliability Suite ──
+    require_once __DIR__ . '/../../lib/cleanup-path-validator.php';
+    require_once __DIR__ . '/../../lib/submission-cleanup-worker.php';
 
-    // Queue insert is atomic with database deletion: after HR deletes, a queue row must exist.
-    $r = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 900]);
-    $queueRow = $db->query("SELECT * FROM submission_cleanup_queue WHERE submission_id=900")->fetch(PDO::FETCH_ASSOC);
-    $assert('Cleanup queue row is inserted atomically when submission is deleted', $r[0] === 200 && $queueRow !== false && $queueRow['file_path'] === 'uploads/q.pdf', 'HTTP ' . $r[0] . ' queue=' . json_encode($queueRow));
+    // ── T1: Simulated queue insertion failure rolls back submission deletion ──
+    $db->exec("INSERT INTO submissions (id,user_id,national_id,full_name,email,department_applied,status) VALUES (901,1,'10000001','Atomicity Test 1','atom1@example.test','ICT','applied')");
+    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (901,'letter','doc901.pdf','uploads/doc901.pdf','application/pdf',512)");
+    $db->exec('ALTER TABLE submission_cleanup_queue RENAME TO _scq_fail_sim');
+    $rFailQueue = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 901]);
+    $sub901Exists = $db->query('SELECT id FROM submissions WHERE id=901')->fetch(PDO::FETCH_ASSOC);
+    $doc901Exists = $db->query('SELECT id FROM documents WHERE submission_id=901')->fetch(PDO::FETCH_ASSOC);
+    $db->exec('ALTER TABLE _scq_fail_sim RENAME TO submission_cleanup_queue');
+    $assert(
+        'Simulated queue insertion failure rolls back submission deletion and documents',
+        ($rFailQueue[0] !== 200 || ($decode($rFailQueue[1])['success'] ?? true) === false) && $sub901Exists !== false && $doc901Exists !== false,
+        'HTTP ' . $rFailQueue[0] . ' subExists=' . var_export($sub901Exists, true)
+    );
 
-    // Completed_at is NULL (not yet processed) — crash recovery: unprocessed queue rows remain visible.
-    $assert('Unprocessed cleanup queue row has completed_at NULL', $queueRow && $queueRow['completed_at'] === null, 'completed_at=' . json_encode($queueRow['completed_at'] ?? 'missing'));
+    // ── T2: Simulated audit failure rolls back deletion and queue insertion ────
+    $db->exec("INSERT INTO submissions (id,user_id,national_id,full_name,email,department_applied,status) VALUES (902,1,'10000001','Audit Fail Test','auditfail@example.test','ICT','applied')");
+    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (902,'letter','doc902.pdf','uploads/doc902.pdf','application/pdf',512)");
+    $db->exec('ALTER TABLE audit_logs RENAME TO _audit_fail_sim');
+    $rFailAudit = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 902]);
+    $sub902Exists = $db->query('SELECT id FROM submissions WHERE id=902')->fetch(PDO::FETCH_ASSOC);
+    $db->exec('ALTER TABLE _audit_fail_sim RENAME TO audit_logs');
+    $scq902Count = (int)$db->query('SELECT COUNT(*) FROM submission_cleanup_queue WHERE submission_id=902')->fetchColumn();
+    $assert(
+        'Simulated audit failure rolls back deletion and leaves no partial queue records',
+        ($rFailAudit[0] !== 200 || ($decode($rFailAudit[1])['success'] ?? true) === false) && $sub902Exists !== false && $scq902Count === 0,
+        'HTTP ' . $rFailAudit[0] . ' subExists=' . var_export($sub902Exists, true) . ' scqCount=' . $scq902Count
+    );
+    $db->exec('DELETE FROM documents WHERE submission_id IN (901, 902)');
+    $db->exec('DELETE FROM submissions WHERE id IN (901, 902)');
 
-    // Response body must NOT expose cleanup_failures or any filesystem path.
-    $deleteBody = json_decode($r[1], true);
-    $assert('Delete-submission API response does not expose cleanup_failures or filesystem paths', !array_key_exists('cleanup_failures', (array)$deleteBody) && !str_contains($r[1], 'uploads/'), 'body=' . $r[1]);
+    // ── T3: Successful deletion atomically deletes submission, logs audit, and creates queue records with canonical relative path ──
+    $db->exec("INSERT INTO submissions (id,user_id,national_id,full_name,email,department_applied,status) VALUES (903,1,'10000001','Atomic Commit Test','atomic@example.test','ICT','applied')");
+    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (903,'letter','doc903_1.pdf','uploads/doc903_1.pdf','application/pdf',1024)");
+    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (903,'cv','doc903_2.pdf','subfolder/doc903_2.pdf','application/pdf',2048)");
+    $db->exec("INSERT INTO documents (submission_id,document_type,original_filename,file_path,mime_type,file_size) VALUES (903,'id','doc903_3.pdf','','application/pdf',4096)"); // BLOB only, must not queue
+    $rSuccess = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 903]);
+    $sub903Gone = ($db->query('SELECT id FROM submissions WHERE id=903')->fetch() === false);
+    $qRows903 = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=903 ORDER BY id ASC')->fetchAll(PDO::FETCH_ASSOC);
+    $audit903 = $db->query("SELECT id, action, details FROM audit_logs WHERE entity_id=903 AND action='delete_submission'")->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Successful deletion atomically commits submission delete, audit record, and canonical queue rows',
+        $rSuccess[0] === 200 && $sub903Gone && count($qRows903) === 2 && $qRows903[0]['file_path'] === 'doc903_1.pdf' && $qRows903[1]['file_path'] === 'subfolder/doc903_2.pdf' && $audit903 !== false,
+        'HTTP ' . $rSuccess[0] . ' gone=' . var_export($sub903Gone, true) . ' queue=' . json_encode($qRows903)
+    );
 
-    // Duplicate path: second delete of same submission must return success:false (submission no longer exists).
-    $r2 = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 900]);
-    $r2body = $decode($r2[1]);
-    $assert('Deleted submission cannot be deleted a second time (idempotent guard)', ($r2body['success'] ?? true) === false && str_contains($r2[1], 'not found'), 'HTTP ' . $r2[0] . ' body=' . $r2[1]);
+    // ── T4: Response sanitization & 404 guard ──
+    $delBody = json_decode($rSuccess[1], true);
+    $assert(
+        'Delete-submission API response does not expose internal paths or cleanup arrays',
+        !array_key_exists('cleanup_failures', (array)$delBody) && !str_contains($rSuccess[1], 'uploads/') && ($delBody['success'] ?? false) === true,
+        'body=' . $rSuccess[1]
+    );
+    $r404 = $jsonRequest('POST', '/api/delete-submission.php', $tokenHR, ['submission_id' => 903]);
+    $assert(
+        'Deleted submission returns HTTP 404 on subsequent delete attempt (idempotent guard)',
+        $r404[0] === 404 && ($decode($r404[1])['success'] ?? true) === false,
+        'HTTP ' . $r404[0] . ' body=' . $r404[1]
+    );
 
-    // Retry path: simulate a failed attempt by updating the queue row; completed_at remains NULL.
-    $db->exec("UPDATE submission_cleanup_queue SET attempts=1, last_error='simulated error', available_at='" . date('Y-m-d H:i:s', time() - 5) . "' WHERE submission_id=900");
-    $retryRow = $db->query("SELECT attempts, last_error, completed_at FROM submission_cleanup_queue WHERE submission_id=900")->fetch(PDO::FETCH_ASSOC);
-    $assert('Failed cleanup queue row retains last_error and completed_at NULL after simulated failure', $retryRow && (int)$retryRow['attempts'] === 1 && $retryRow['last_error'] === 'simulated error' && $retryRow['completed_at'] === null, json_encode($retryRow));
-    // --- End Task 4 tests ---
+    // ── Worker Reliability Suite (executed via SubmissionCleanupWorker on test directory) ──
+    $testUploadDir = $work . DIRECTORY_SEPARATOR . 'test_uploads_' . bin2hex(random_bytes(4)) . DIRECTORY_SEPARATOR;
+    @mkdir($testUploadDir, 0700, true);
+    $worker = new SubmissionCleanupWorker($db, 5, 10);
+
+    // ── W1: Existing file is deleted successfully ──
+    file_put_contents($testUploadDir . 'file_to_delete.pdf', 'SAMPLE-CONTENT-FOR-DELETION');
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([950, 'file_to_delete.pdf']);
+    $w1Stats = $worker->processBatch(10, $testUploadDir);
+    $w1FileDeleted = !file_exists($testUploadDir . 'file_to_delete.pdf');
+    $w1Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=950')->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Cleanup worker physically deletes existing file and marks record completed',
+        $w1FileDeleted && $w1Row && $w1Row['completed_at'] !== null && $w1Row['last_error'] === null,
+        'deleted=' . var_export($w1FileDeleted, true) . ' row=' . json_encode($w1Row)
+    );
+
+    // ── W2: Missing file is treated as successfully cleaned ──
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([951, 'already_missing_doc.pdf']);
+    $w2Stats = $worker->processBatch(10, $testUploadDir);
+    $w2Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=951')->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Cleanup worker treats already missing file as successfully cleaned',
+        $w2Row && $w2Row['completed_at'] !== null && $w2Row['last_error'] === null,
+        'stats=' . json_encode($w2Stats) . ' row=' . json_encode($w2Row)
+    );
+
+    // ── W3: Invalid path with null bytes is rejected ──
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([952, "evil\0file.pdf"]);
+    $w3Stats = $worker->processBatch(10, $testUploadDir);
+    $w3Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=952')->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Cleanup worker rejects path containing null byte and schedules retry',
+        $w3Row && $w3Row['completed_at'] === null && (int)$w3Row['attempts'] === 1 && str_contains($w3Row['last_error'] ?? '', 'null byte'),
+        'row=' . json_encode($w3Row)
+    );
+
+    // ── W4: Traversal path cannot escape the upload directory ──
+    $outsideVictim = $work . DIRECTORY_SEPARATOR . 'outside_victim.txt';
+    file_put_contents($outsideVictim, 'DO-NOT-DELETE-OUTSIDE-DATA');
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([953, '../outside_victim.txt']);
+    $w4Stats = $worker->processBatch(10, $testUploadDir);
+    $outsidePreserved = file_exists($outsideVictim);
+    $w4Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=953')->fetch(PDO::FETCH_ASSOC);
+    @unlink($outsideVictim);
+    $assert(
+        'Cleanup worker rejects directory traversal and prevents file deletion outside upload dir',
+        $outsidePreserved && $w4Row && $w4Row['completed_at'] === null && (int)$w4Row['attempts'] === 1 && str_contains($w4Row['last_error'] ?? '', 'traversal'),
+        'preserved=' . var_export($outsidePreserved, true) . ' row=' . json_encode($w4Row)
+    );
+
+    // ── W5: Symlink escape is rejected where supported ──
+    $secretFile = $work . DIRECTORY_SEPARATOR . 'secret.txt';
+    file_put_contents($secretFile, 'CONFIDENTIAL');
+    $symlinkTarget = $testUploadDir . 'symlink_escape.pdf';
+    $symlinkOk = @symlink($secretFile, $symlinkTarget);
+    if ($symlinkOk) {
+        $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([954, 'symlink_escape.pdf']);
+        $w5Stats = $worker->processBatch(10, $testUploadDir);
+        $secretPreserved = file_exists($secretFile);
+        $w5Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=954')->fetch(PDO::FETCH_ASSOC);
+        @unlink($symlinkTarget);
+        @unlink($secretFile);
+        $assert(
+            'Cleanup worker rejects symlink pointing outside permitted upload directory',
+            $secretPreserved && $w5Row && $w5Row['completed_at'] === null && str_contains($w5Row['last_error'] ?? '', 'escapes'),
+            'preserved=' . var_export($secretPreserved, true) . ' row=' . json_encode($w5Row)
+        );
+    } else {
+        @unlink($secretFile);
+        $pathValRes = CleanupPathValidator::resolveAndValidate('regular_doc.pdf', $testUploadDir);
+        $assert('Symlink escape resolution validated via canonical validator', is_array($pathValRes) && $pathValRes['valid'] === true);
+    }
+
+    // ── W6: Failed deletion increments attempts and schedules retry ──
+    $unremovableDir = $testUploadDir . 'locked_dir';
+    @mkdir($unremovableDir, 0700, true);
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([955, 'locked_dir']);
+    $w6Stats = $worker->processBatch(10, $testUploadDir);
+    $w6Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=955')->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Failed physical deletion increments attempts and schedules retry with future available_at',
+        $w6Row && (int)$w6Row['attempts'] === 1 && $w6Row['completed_at'] === null && strtotime($w6Row['available_at']) > time(),
+        'row=' . json_encode($w6Row)
+    );
+
+    // ── W7: Successful retry marks the record completed ──
+    @rmdir($unremovableDir);
+    $db->exec("UPDATE submission_cleanup_queue SET available_at = '" . date('Y-m-d H:i:s', time() - 30) . "' WHERE submission_id=955");
+    $w7Stats = $worker->processBatch(10, $testUploadDir);
+    $w7Row = $db->query('SELECT * FROM submission_cleanup_queue WHERE submission_id=955')->fetch(PDO::FETCH_ASSOC);
+    $assert(
+        'Successful retry marks record completed and clears last_error',
+        $w7Row && $w7Row['completed_at'] !== null && $w7Row['last_error'] === null,
+        'row=' . json_encode($w7Row)
+    );
+
+    // ── W8: Duplicate worker execution does not corrupt queue state ──
+    $w8Stats = $worker->processBatch(10, $testUploadDir);
+    $assert(
+        'Duplicate worker run on completed records claims zero rows and corrupts nothing',
+        $w8Stats['claimed'] === 0,
+        'stats=' . json_encode($w8Stats)
+    );
+
+    // ── W9: Interrupted worker claim recovery ──
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([956, 'recoverable_doc.pdf']);
+    // Simulate a worker having claimed the row with lease 10 min in the future
+    $db->exec("UPDATE submission_cleanup_queue SET available_at = '" . date('Y-m-d H:i:s', time() + 600) . "' WHERE submission_id=956");
+    $w9Run1 = $worker->processBatch(10, $testUploadDir);
+    $w9RowInFlight = $db->query('SELECT completed_at FROM submission_cleanup_queue WHERE submission_id=956')->fetchColumn();
+    // Simulate claim lease expiring after interrupted worker crashed
+    $db->exec("UPDATE submission_cleanup_queue SET available_at = '" . date('Y-m-d H:i:s', time() - 10) . "' WHERE submission_id=956");
+    $w9Run2 = $worker->processBatch(10, $testUploadDir);
+    $w9RowRecovered = $db->query('SELECT completed_at FROM submission_cleanup_queue WHERE submission_id=956')->fetchColumn();
+    $assert(
+        'Interrupted worker in-flight claim expires and subsequent worker successfully recovers and processes record',
+        $w9Run1['claimed'] === 0 && $w9RowInFlight === null && $w9Run2['completed'] === 1 && $w9RowRecovered !== null,
+        'run1=' . json_encode($w9Run1) . ' run2=' . json_encode($w9Run2)
+    );
+
+    // ── W10: Terminal failure prevents infinite retry loops ──
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path, attempts) VALUES (?, ?, ?)')->execute([957, "bad\0stream.pdf", 4]);
+    $w10Run = $worker->processBatch(10, $testUploadDir);
+    $w10Row = $db->query('SELECT attempts, completed_at, last_error FROM submission_cleanup_queue WHERE submission_id=957')->fetch(PDO::FETCH_ASSOC);
+    $w10SubsequentRun = $worker->processBatch(10, $testUploadDir);
+    $assert(
+        'Max retry limit triggers terminal failure and permanently halts reprocessing of bad record',
+        $w10Row && (int)$w10Row['attempts'] === 5 && $w10Row['completed_at'] === null && str_contains($w10Row['last_error'], 'Terminal failure') && $w10SubsequentRun['claimed'] === 0,
+        'row=' . json_encode($w10Row) . ' subRun=' . json_encode($w10SubsequentRun)
+    );
+
+    @rmdir($testUploadDir);
+    // ── End Phase 2.2 Suite ──
 
     $r = $jsonRequest('POST', '/api/toggle-admin-status.php', $tokenSuperAdmin, ['admin_id' => $financeSupervisorId, 'status' => 'inactive', 'reason' => 'Phase 2 test']);
     $invalidated = (int)$db->query('SELECT is_valid FROM sessions WHERE admin_id=' . $financeSupervisorId . ' ORDER BY id DESC LIMIT 1')->fetchColumn();

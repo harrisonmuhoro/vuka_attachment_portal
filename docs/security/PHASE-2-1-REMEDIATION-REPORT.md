@@ -55,9 +55,12 @@ the server successfully, exposing the undefined-function fatal error.
 
 ---
 
-## Task 2 — Atomic Submission Cleanup Queue
+## Task 2 — Submission Cleanup Queue (Historical Phase 2.1 Baseline)
 
-Implemented in commit `f7a2c3e` (previous session, included in this branch):
+> [!NOTE]
+> **Audit Correction (Phase 2.2):** The Phase 2.1 implementation used a *commit-then-queue* sequence, which left an operational failure window: if the process terminated after the database commit but before queue insertion, documents on disk would remain orphaned without a queue record. This was formally identified in post-merge audit and fully resolved in Phase 2.2 (`feature/phase-2-2-atomic-cleanup-reliability`), where queue insertion, submission deletion, and audit logging are all executed within a single database transaction.
+
+Implemented in commit `f7a2c3e` (historical Phase 2.1 baseline):
 
 - `api/delete-submission.php` wraps the `DELETE FROM submissions` and its audit log entry in a
   single `beginTransaction()`/`commit()`. Physical file cleanup is queued in
