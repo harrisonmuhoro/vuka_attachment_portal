@@ -56,6 +56,11 @@ if (!defined('VUKA_CONFIG_LOADED')) {
     if (!defined('SMTP_FROM')) define('SMTP_FROM', $env('SMTP_FROM', ''));
     if (!defined('SMTP_FROM_NAME')) define('SMTP_FROM_NAME', $env('SMTP_FROM_NAME', 'Vuka Portal'));
 
+    // Upload directory for student documents. Must end with DIRECTORY_SEPARATOR.
+    if (!defined('UPLOAD_DIR')) {
+        define('UPLOAD_DIR', dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR);
+    }
+
     if (!defined('MAX_FILE_SIZE')) define('MAX_FILE_SIZE', 2 * 1024 * 1024);
     if (!defined('ALLOWED_EXTENSIONS')) define('ALLOWED_EXTENSIONS', ['pdf', 'jpg', 'jpeg', 'png']);
     if (!defined('ALLOWED_MIME_TYPES')) define('ALLOWED_MIME_TYPES', [

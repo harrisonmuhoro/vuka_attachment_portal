@@ -89,7 +89,7 @@ try {
     }
     
     ob_end_clean();
-    json_response(true, ['message' => 'Submission deleted successfully', 'cleanup_failures' => $cleanupFailures]);
+    json_response(true, ['message' => 'Submission deleted successfully']);
     
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
