@@ -45,8 +45,8 @@ class SubmissionCleanupWorker
 
         // Phase 1: Atomically claim pending eligible records
         $claimedRows = [];
-        $this->pdo->beginTransaction();
         try {
+            $this->pdo->beginTransaction();
             $claimSql = 'SELECT id, submission_id, file_path, attempts'
                 . ' FROM submission_cleanup_queue'
                 . ' WHERE completed_at IS NULL'
@@ -76,7 +76,7 @@ class SubmissionCleanupWorker
                 $this->pdo->rollBack();
             }
             error_log('Cleanup worker batch claim failed: ' . $e->getMessage());
-            return $stats;
+            throw new RuntimeException('Database claim operation failed', 0, $e);
         }
 
         $stats['claimed'] = count($claimedRows);

@@ -188,6 +188,27 @@ try {
     }
     if (!$ready) throw new RuntimeException('Isolated PHP test server did not start');
 
+    $runCliWorker = static function (array $extraEnv = []) use ($quote, $root, $environment): array {
+        $cliEnv = array_merge($environment, $extraEnv);
+        $script = $root . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'process-submission-cleanup.php';
+        $cmd = $quote(PHP_BINARY) . ' ' . $quote($script);
+        $proc = proc_open($cmd, [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes, $root, $cliEnv);
+        if (!is_resource($proc)) {
+            return [-1, '', 'Failed to launch proc'];
+        }
+        fclose($pipes[0]);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($proc);
+        return [$exitCode, (string)$stdout, (string)$stderr];
+    };
+
     // Anonymous access is blocked before private rows or document content are queried.
     $r = $request('GET', '/api/get-submissions.php');
     $assert('Anonymous submission list denied', $r[0] === 401, 'HTTP ' . $r[0]);
@@ -540,6 +561,73 @@ try {
         'Max retry limit triggers terminal failure and permanently halts reprocessing of bad record',
         $w10Row && (int)$w10Row['attempts'] === 5 && $w10Row['completed_at'] === null && str_contains($w10Row['last_error'], 'Terminal failure') && $w10SubsequentRun['claimed'] === 0,
         'row=' . json_encode($w10Row) . ' subRun=' . json_encode($w10SubsequentRun)
+    );
+
+    // ── W11: SQL exception during batch claiming triggers rollback and propagates exception ──
+    $db->exec('ALTER TABLE submission_cleanup_queue RENAME TO _scq_claim_err');
+    $sqlThrown = false;
+    try {
+        $worker->processBatch(10, $testUploadDir);
+    } catch (RuntimeException $re) {
+        $sqlThrown = str_contains($re->getMessage(), 'Database claim operation failed');
+    }
+    $inTx = $db->inTransaction();
+    $db->exec('ALTER TABLE _scq_claim_err RENAME TO submission_cleanup_queue');
+    $assert(
+        'SQL exception during batch claim triggers transaction rollback and propagates exception',
+        $sqlThrown && !$inTx,
+        'sqlThrown=' . var_export($sqlThrown, true) . ' inTx=' . var_export($inTx, true)
+    );
+
+    // ── W12: Database connection failure during batch claiming propagates exception ──
+    if (!class_exists('DisconnectedPdoMock', false)) {
+        class DisconnectedPdoMock extends PDO {
+            public function __construct() {
+                parent::__construct('sqlite::memory:');
+            }
+            public function beginTransaction(): bool { throw new PDOException('Database connection lost'); }
+            public function inTransaction(): bool { return false; }
+            public function rollBack(): bool { return false; }
+        }
+    }
+    $brokenWorker = new SubmissionCleanupWorker(new DisconnectedPdoMock());
+    $connThrown = false;
+    try {
+        $brokenWorker->processBatch(10, $testUploadDir);
+    } catch (RuntimeException $re) {
+        $connThrown = str_contains($re->getMessage(), 'Database claim operation failed');
+    }
+    $assert(
+        'Database connection failure during batch claiming propagates exception',
+        $connThrown,
+        'connThrown=' . var_export($connThrown, true)
+    );
+
+    // ── W13: CLI worker exits with code 0 when no pending cleanup records exist ──
+    [$cliCode0, $cliOut0, $cliErr0] = $runCliWorker();
+    $assert(
+        'CLI worker exits with code 0 when no pending cleanup records exist',
+        $cliCode0 === 0 && str_contains($cliOut0, '0 claimed'),
+        'code=' . $cliCode0 . ' out=' . $cliOut0 . ' err=' . $cliErr0
+    );
+
+    // ── W14: CLI worker exits with code 0 when records are processed successfully ──
+    $db->prepare('INSERT INTO submission_cleanup_queue (submission_id, file_path) VALUES (?, ?)')->execute([958, 'cli_test_doc.pdf']);
+    [$cliCodeSucc, $cliOutSucc, $cliErrSucc] = $runCliWorker();
+    $assert(
+        'CLI worker exits with code 0 when records are processed successfully',
+        $cliCodeSucc === 0 && str_contains($cliOutSucc, '1 claimed, 1 completed'),
+        'code=' . $cliCodeSucc . ' out=' . $cliOutSucc . ' err=' . $cliErrSucc
+    );
+
+    // ── W15: CLI worker exits with code 1 on operational failure ──
+    $db->exec('ALTER TABLE submission_cleanup_queue RENAME TO _scq_cli_fail');
+    [$cliCodeFail, $cliOutFail, $cliErrFail] = $runCliWorker();
+    $db->exec('ALTER TABLE _scq_cli_fail RENAME TO submission_cleanup_queue');
+    $assert(
+        'CLI worker exits with code 1 and prints sanitized error on operational failure',
+        $cliCodeFail === 1 && str_contains($cliErrFail, 'operational error'),
+        'code=' . $cliCodeFail . ' out=' . $cliOutFail . ' err=' . $cliErrFail
     );
 
     @rmdir($testUploadDir);

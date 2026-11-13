@@ -16,7 +16,8 @@
 *.sqlite3
 
 # === USER UPLOADED DOCUMENTS ===
-uploads/
+uploads/*
+!uploads/.gitkeep
 uploads/profile_photos/
 uploads/application_letter/
 uploads/national_id_copy/
