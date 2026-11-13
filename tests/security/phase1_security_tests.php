@@ -261,6 +261,23 @@ try {
     $detail = $decode($r[1]);
     $assert('Applicant own detail omits internal review history and notes', $r[0] === 200 && ($detail['review_history'] ?? null) === [] && !isset($detail['submission']['review_notes']), 'HTTP ' . $r[0]);
     $assert('Applicant document metadata omits BLOB content', $r[0] === 200 && !isset($detail['documents'][0]['file_content']), 'payload check');
+
+    // get-user-submissions.php endpoint security & column projection checks (Phase 2.2 Finding B)
+    $rUserSubs = $request('GET', '/api/get-user-submissions.php?user_id=2', $tokenByUser[1]);
+    $userSubsBody = $decode($rUserSubs[1]);
+    $userSubRow = $userSubsBody['submissions'][0] ?? [];
+    $assert('Applicant get-user-submissions ignores forged user_id parameter', $rUserSubs[0] === 200 && count($userSubsBody['submissions'] ?? []) === 1 && (int)($userSubRow['user_id'] ?? 0) === 1, 'HTTP ' . $rUserSubs[0]);
+    $assert('Applicant get-user-submissions uses column allowlist and excludes internal administrative fields',
+        $rUserSubs[0] === 200 && isset($userSubRow['national_id'], $userSubRow['full_name'], $userSubRow['email'], $userSubRow['department_applied'])
+        && !array_key_exists('review_notes', $userSubRow)
+        && !array_key_exists('intern_pf_number', $userSubRow)
+        && !array_key_exists('assigned_role', $userSubRow)
+        && !array_key_exists('assigned_station', $userSubRow)
+        && !array_key_exists('last_updated_by', $userSubRow),
+        'payload check: ' . json_encode(array_keys($userSubRow))
+    );
+    $rUserSubsAnon = $request('GET', '/api/get-user-submissions.php');
+    $assert('Anonymous get-user-submissions denied — HTTP 401', $rUserSubsAnon[0] === 401, 'HTTP ' . $rUserSubsAnon[0]);
     $r = $request('GET', '/api/download-document.php?id=1', $tokenByUser[1]);
     $assert('Applicant downloads own document', $r[0] === 200 && str_contains($r[1], '%PDF-ALPHA'), 'HTTP ' . $r[0]);
     $r = $request('GET', '/api/download-document.php?id=2', $tokenByUser[1]);
@@ -829,8 +846,8 @@ $iterator = new RecursiveIteratorIterator(
     RecursiveIteratorIterator::CHILD_FIRST
 );
 foreach ($iterator as $item) {
-    $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+    $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
 }
-rmdir($work);
+@rmdir($work);
 exit($failed === 0 ? 0 : 1);
 ?>

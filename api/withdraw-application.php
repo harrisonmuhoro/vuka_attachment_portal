@@ -2,11 +2,13 @@
 /** Applicant withdrawal through the shared application workflow rules. */
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/application-workflow.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     json_response(false, null, 'Method not allowed', 405);
 }
 $session = requireStudent();
+Authorization::requireApplicantOwnership($session, (int)$session['user_id']);
 require_json_request();
 $input = json_decode(file_get_contents('php://input'), true);
 $submissionId = is_array($input) ? filter_var($input['submission_id'] ?? $input['submissionId'] ?? null, FILTER_VALIDATE_INT) : false;

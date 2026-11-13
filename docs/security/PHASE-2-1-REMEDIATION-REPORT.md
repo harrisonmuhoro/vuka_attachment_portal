@@ -2,8 +2,8 @@
 
 **Branch:** `feature/phase-2-1-rbac-integration-ci-recovery`
 **Base SHA:** `99a3da7e0a309be37d264aba74b81b342d17f93e`
-**Report updated:** 2026-11-12
-**All 8 tasks complete. Local test results: 112 passed, 0 failed.**
+**Report updated:** 2026-11-13\
+**Status:** Merged into main via PR #9. CI and regression checks passing (112 local / CI suite).
 
 ---
 
@@ -15,6 +15,7 @@
 | Working branch | `feature/phase-2-1-rbac-integration-ci-recovery` |
 | API surface inspected | 46 PHP files under `api/` |
 | Phase 2 merged via | PR #7 |
+| Phase 2.1 merged via | PR #9 |
 
 ---
 
@@ -170,5 +171,5 @@ Migration `002_submission_cleanup_queue` applied and idempotency confirmed.
 |---|---|---|
 | `UPLOAD_DIR` now defined in config; cleanup worker will function in production | Low | Resolved |
 | `api/delete-submission.php` missing status code for "not found" (returns HTTP 200 with `success:false`) | Low | Documented; not a security issue; consider adding explicit 404 http code in a follow-up |
-| Hosted GitHub Actions CI result pending push | Medium | Will resolve after PR push |
+| Hosted GitHub Actions CI result | Clean | Verified passing on main (PR #9 merged) |
 | Windows temp dir `rmdir` warning in test harness | Cosmetic | Non-blocking |

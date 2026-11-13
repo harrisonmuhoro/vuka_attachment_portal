@@ -15,6 +15,7 @@ ob_start();
 
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     ob_end_clean();
@@ -23,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 
 $session = requireStudent();
 $userId  = (int)$session['user_id'];
+Authorization::requireApplicantOwnership($session, $userId);
 
 try {
     $stmt = $pdo->prepare("

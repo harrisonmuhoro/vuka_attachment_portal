@@ -1,11 +1,13 @@
 <?php
 /** Retrieve only the authenticated account's safe profile fields. */
 require_once __DIR__ . '/../session-manager.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     json_response(false, null, 'Method not allowed', 405);
 }
 $session = requireAuth();
+Authorization::requirePermission($session, 'profile.view_own');
 
 try {
     if (($session['user_type'] ?? '') === 'student') {

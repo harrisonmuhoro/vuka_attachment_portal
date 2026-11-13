@@ -16,6 +16,7 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../lib/notifications.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     ob_end_clean();
@@ -24,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $session = requireStudent();
 $userId  = (int)$session['user_id'];
+Authorization::requireApplicantOwnership($session, $userId);
 
 try {
     $input = json_decode(file_get_contents('php://input'), true);

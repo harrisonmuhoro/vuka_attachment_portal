@@ -22,6 +22,7 @@ require_once __DIR__ . '/../lib/notifications.php';
 require_once __DIR__ . '/../lib/mailer.php';
 require_once __DIR__ . '/../lib/email-templates.php';
 require_once __DIR__ . '/../lib/application-workflow.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -85,11 +86,7 @@ function handleGet(PDO $pdo)
         // Scope check remains as defense in depth; the lookup itself is scoped.
         $isStudent = $sessionManager->isStudent($session);
         if ($isStudent) {
-            if ((int)$submission['user_id'] !== (int)$session['user_id']) {
-                ob_end_clean();
-                http_response_code(403);
-                json_response(false, null, 'Forbidden: not your submission');
-            }
+            Authorization::requireApplicantOwnership($session, (int)$submission['user_id']);
         } else {
             if (!$sessionManager->isAdminTier($session)) {
                 ob_end_clean();

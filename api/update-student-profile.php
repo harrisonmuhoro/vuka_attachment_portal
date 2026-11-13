@@ -10,12 +10,15 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     json_response(false, null, 'Method not allowed', 405);
 }
 
 $session = requireStudent();
+Authorization::requirePermission($session, 'profile.update_own');
+Authorization::requireApplicantOwnership($session, (int)$session['user_id']);
 
 $fullName = trim($_POST['full_name'] ?? '');
 $phone    = trim($_POST['phone']     ?? '');

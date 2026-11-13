@@ -3,8 +3,8 @@
 **Repository:** `https://github.com/harrisonmuhoro/vuka_attachment_portal`  
 **Base commit (main):** `ed20d59f1641ebd6163e561b014e71799d82e204`  
 **Working branch:** `feature/phase-2-2-atomic-cleanup-reliability`  
-**Date:** 2026-11-12  
-**Status:** All tasks implemented and verified. All 122 security tests and 7 migration tests passing (0 failures).
+**Date:** 2026-11-13\
+**Status:** All tasks implemented, remediated, and verified. All 130 security tests and 7 migration tests passing (0 failures). GitHub Actions CI verified passing.
 
 ---
 
@@ -156,10 +156,24 @@ All tests were executed against the isolated test harness in `tests/security/pha
 | **W8** | Duplicate worker run on completed records claims zero rows and corrupts nothing | **PASS** (Claimed = 0; no data corruption) |
 | **W9** | Interrupted worker in-flight claim expires and subsequent worker successfully recovers and processes record | **PASS** (Expired claim picked up and completed) |
 | **W10** | Max retry limit triggers terminal failure and permanently halts reprocessing of bad record | **PASS** (Attempts = 5; terminal failure message recorded; excluded from subsequent runs) |
+| **W11** | SQL exception during batch claim triggers transaction rollback and propagates exception | **PASS** (`sqlThrown = true`, `inTx = false`) |
+| **W12** | Database connection failure during batch claiming propagates RuntimeException | **PASS** (`connThrown = true`, `RuntimeException` thrown) |
+| **W13** | CLI worker exits with code 0 when no pending cleanup records exist | **PASS** (Exit code `0`, `0 claimed`) |
+| **W14** | CLI worker exits with code 0 when records are processed successfully | **PASS** (Exit code `0`, `1 claimed, 1 completed`) |
+| **W15** | CLI worker exits with code 1 and prints sanitized error on operational failure | **PASS** (Exit code `1`, sanitized error output) |
+
+### Applicant Ownership & Column Allowlist Tests (Finding B)
+
+| ID | Test Description | Result |
+|---|---|---|
+| **A1** | Applicant `get-user-submissions.php` ignores forged query parameters (`?user_id=2`) | **PASS** (HTTP 200; only authenticated user's records returned) |
+| **A2** | Applicant `get-user-submissions.php` strictly filters columns via allowlist | **PASS** (Omitted: `review_notes`, `intern_pf_number`, `assigned_role`, `assigned_station`, `last_updated_by`) |
+| **A3** | Unauthenticated access to `get-user-submissions.php` denied | **PASS** (HTTP 401) |
 
 ### Test Summary
-- **Security Regression Suite (`tests/security/phase1_security_tests.php`):** **122 passed, 0 failed.**
+- **Security Regression Suite (`tests/security/phase1_security_tests.php`):** **130 passed, 0 failed.**
 - **MySQL Migration Suite (`tests/security/phase1_migration_test.php`):** **7 passed, 0 failed.**
+- **Hosted GitHub Actions CI:** **Passed (Green)** on run `43404812980` (commit `c25e6bc`).
 - **PHP Syntax Checks:** 100% passed across all PHP files.
 - **JavaScript Syntax Checks:** 100% passed via `node --check`.
 - **Git Diff Check:** Clean, no whitespace or conflict errors.

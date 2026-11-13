@@ -9,6 +9,7 @@ ob_start();
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../session-manager.php';
 require_once __DIR__ . '/../audit-logger.php';
+require_once __DIR__ . '/../lib/authorization.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
     ob_end_clean();
@@ -18,9 +19,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
 try {
     $session = requireAuth();
     $role = (string)($session['role_name'] ?? '');
-    if (!in_array($role, ['super_admin', 'hr_coordinator', 'department_supervisor'], true)) {
-        ob_end_clean();
-        json_response(false, null, 'Forbidden', 403);
+    if ($role === 'department_supervisor') {
+        Authorization::requirePermission($session, 'audit.view_department');
+    } else {
+        Authorization::requirePermission($session, 'audit.view_all');
     }
 
     $filters = [];
