@@ -1,17 +1,45 @@
 <?php
-if (PHP_SAPI !== 'cli') exit(1);
+/**
+ * Submission Cleanup Worker CLI Script
+ * Vuka Attachment Portal — Phase 2.2
+ *
+ * Usage:
+ *   php scripts/process-submission-cleanup.php [--limit=50]
+ */
+
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    echo "This script can only be executed from the command line.\n";
+    exit(1);
+}
+
 require_once __DIR__ . '/../config/config.php';
-$stmt = $pdo->query("SELECT id, file_path FROM submission_cleanup_queue WHERE completed_at IS NULL AND available_at <= NOW() ORDER BY id LIMIT 100");
-$done = 0;
-foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $path = UPLOAD_DIR . (string)$row['file_path'];
-    $ok = !is_file($path) || @unlink($path);
-    if ($ok) {
-        $pdo->prepare('UPDATE submission_cleanup_queue SET completed_at = NOW(), attempts = attempts + 1, last_error = NULL WHERE id = ?')->execute([(int)$row['id']]);
-        $done++;
-    } else {
-        $pdo->prepare("UPDATE submission_cleanup_queue SET attempts = attempts + 1, available_at = DATE_ADD(NOW(), INTERVAL LEAST(attempts + 1, 60) MINUTE), last_error = ? WHERE id = ?")
-            ->execute(['Physical file deletion failed', (int)$row['id']]);
+require_once __DIR__ . '/../lib/submission-cleanup-worker.php';
+
+// Parse optional --limit argument
+$limit = 50;
+foreach ($argv as $arg) {
+    if (str_starts_with($arg, '--limit=')) {
+        $val = (int)substr($arg, 8);
+        if ($val > 0) {
+            $limit = $val;
+        }
     }
 }
-fwrite(STDOUT, "Processed {$done} cleanup records.\n");
+
+try {
+    $worker = new SubmissionCleanupWorker($GLOBALS['pdo']);
+    $stats = $worker->processBatch($limit);
+
+    $claimed   = $stats['claimed'];
+    $completed = $stats['completed'];
+    $failed    = $stats['failed'];
+    $terminal  = $stats['terminal'];
+
+    fwrite(STDOUT, "Cleanup run finished: {$claimed} claimed, {$completed} completed, {$failed} retrying, {$terminal} terminal.\n");
+    exit(0);
+} catch (Throwable $e) {
+    error_log('Cleanup worker top-level execution failure: ' . $e->getMessage());
+    fwrite(STDERR, "Cleanup worker encountered an operational error.\n");
+    exit(1);
+}

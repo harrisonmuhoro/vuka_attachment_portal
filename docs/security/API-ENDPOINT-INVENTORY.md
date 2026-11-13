@@ -12,7 +12,7 @@ Baseline: `99a3da7e0a309be37d264aba74b81b342d17f93e` · 46 PHP endpoints inspect
 | confirm-email-change.php | POST | Authenticated | Session-derived account/token | Yes | Verified |
 | create-admin-account.php | POST | Super Admin | Server-derived creator | Yes, audit | Verified |
 | deactivate-admin-account.php | POST | Super Admin | Target admin, no self-change | Yes, audit | Verified |
-| delete-submission.php | POST | HR / Super Admin | Scoped lookup; supervisor denied | Yes, audit | Remediated |
+| delete-submission.php | POST | HR / Super Admin | Scoped lookup; supervisor denied | Yes, audit | Verified (Phase 2.2 atomic transaction & 404 guard) |
 | download-document.php | GET | Student/admin | Owner or department scope | No | Verified |
 | evaluations.php | GET/POST | Student/admin | Owner or department scope | Yes for admin | Verified |
 | forgot-password.php | POST | Public | Email/token flow | Token | Verified |
